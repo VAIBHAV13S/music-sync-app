@@ -27,24 +27,24 @@ const allowedOrigins = isDevelopment
 // Apply CORS FIRST - before other middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // TEMPORARY: Allow all origins for debugging
+    console.log('Request from origin:', origin);
+    return callback(null, true);
     
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // In development, log the rejected origin
-    if (isDevelopment) {
-      console.log('CORS rejected origin:', origin);
-    }
-    
-    return callback(new Error('Not allowed by CORS'));
+    // // Uncomment this after finding the correct origin:
+    // if (!origin) return callback(null, true);
+    // if (allowedOrigins.includes(origin)) {
+    //   return callback(null, true);
+    // }
+    // if (isDevelopment) {
+    //   console.log('CORS rejected origin:', origin);
+    // }
+    // return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  optionsSuccessStatus: 200 // Support legacy browsers
+  optionsSuccessStatus: 200
 }));
 
 // Handle preflight requests explicitly
