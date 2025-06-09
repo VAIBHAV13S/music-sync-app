@@ -21,25 +21,26 @@ const allowedOrigins = isDevelopment
   ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
   : [
       'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
-      'https://music-sync-app-git-main-vaibhav13s-projects.vercel.app', // Git branch domains
+      'https://music-sync-app-git-main-vaibhav13s-projects.vercel.app', // Your actual URL
       'https://music-sync-app-vaibhav13s-projects.vercel.app', // Alternative format
     ];
+
 // Apply CORS FIRST - before other middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // TEMPORARY: Allow all origins for debugging
-    console.log('Request from origin:', origin);
-    return callback(null, true);
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
     
-    // // Uncomment this after finding the correct origin:
-    // if (!origin) return callback(null, true);
-    // if (allowedOrigins.includes(origin)) {
-    //   return callback(null, true);
-    // }
-    // if (isDevelopment) {
-    //   console.log('CORS rejected origin:', origin);
-    // }
-    // return callback(new Error('Not allowed by CORS'));
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // In development, log the rejected origin
+    if (isDevelopment) {
+      console.log('CORS rejected origin:', origin);
+    }
+    
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -85,7 +86,7 @@ app.use('/api', limiter);
 // Socket.IO server with proper CORS
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: allowedOrigins, // This should now include your actual URL
     methods: ['GET', 'POST'],
     credentials: true
   },
