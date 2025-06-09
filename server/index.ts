@@ -20,22 +20,27 @@ app.set('trust proxy', 1);
 const allowedOrigins = isDevelopment 
   ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
   : [
-      'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
-      'https://music-sync-app-git-main-vaibhav13s-projects.vercel.app', // Your actual URL
-      'https://music-sync-app-vaibhav13s-projects.vercel.app', // Alternative format
+      /^https:\/\/music-sync.*\.vercel\.app$/, // Allow all music-sync Vercel deployments
     ];
 
-// Apply CORS FIRST - before other middleware
+// Update CORS to handle regex
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.includes(origin)) {
+    // Check if origin matches any allowed pattern
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      // Handle regex patterns
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
       return callback(null, true);
     }
     
-    // In development, log the rejected origin
     if (isDevelopment) {
       console.log('CORS rejected origin:', origin);
     }
@@ -47,7 +52,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   optionsSuccessStatus: 200
 }));
-
 // Handle preflight requests explicitly
 app.options('*', (req: Request, res: Response) => {
   res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
@@ -463,27 +467,57 @@ app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Check if origin matches any allowed pattern (same logic as main CORS)
+  if (origin) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      // Handle regex patterns
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
   } else {
     res.header('Access-Control-Allow-Origin', '*');
   }
+  
+  logProduction('error', 'Express error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // 404 handler
 app.use('*', (req: Request, res: Response): void => {
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Check if origin matches any allowed pattern (same logic as main CORS)
+  if (origin) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      // Handle regex patterns
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
   } else {
     res.header('Access-Control-Allow-Origin', '*');
   }
+  
   res.status(404).json({ error: 'Not found' });
 });
-
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logProduction('info', 'SIGTERM received, shutting down gracefully');
