@@ -30,7 +30,7 @@ class RealSocketService {
   private socket: Socket | null = null;
   private _connected = false;
   private _connecting = false;
-  private serverUrl = import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3001';
+  private serverUrl = import.meta.env.VITE_SOCKET_SERVER_URL || 'https://music-sync-app-production.up.railway.app';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private isProduction = import.meta.env.PROD;
