@@ -35,9 +35,7 @@ app.use('/api', limiter);
 const allowedOrigins = isDevelopment 
   ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
   : [
-      'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
-      'https://yourdomain.com',
-      'https://www.yourdomain.com',
+          'https://music-sync-app-vaibhav13s.vercel.app',
     ];
 
 const io = new Server(server, {
