@@ -459,13 +459,24 @@ app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
 });
 
 // Error handling middleware
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction): void => {
-  logProduction('error', 'Express error:', err.message);
+app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
+  // Add CORS headers to error responses
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // 404 handler
-app.use('*', (_req: Request, res: Response): void => {
+app.use('*', (req: Request, res: Response): void => {
+  // Add CORS headers to 404 responses
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
   res.status(404).json({ error: 'Not found' });
 });
 
