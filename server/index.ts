@@ -461,11 +461,11 @@ app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
   const origin = req.headers.origin;
-  if (!origin) {
-    res.header('Access-Control-Allow-Origin', '*');
-  } else if (allowedOrigins.includes(origin)) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
   }
   res.status(500).json({ error: 'Internal server error' });
 });
@@ -473,11 +473,11 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => 
 // 404 handler
 app.use('*', (req: Request, res: Response): void => {
   const origin = req.headers.origin;
-  if (!origin) {
-    res.header('Access-Control-Allow-Origin', '*');
-  } else if (allowedOrigins.includes(origin)) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
   }
   res.status(404).json({ error: 'Not found' });
 });
