@@ -16,6 +16,21 @@ const PORT = process.env.PORT || 3001;
 // Trust proxy - IMPORTANT: Add this before rate limiting
 app.set('trust proxy', 1);
 
+// CORS configuration - MOVE THIS UP BEFORE OTHER MIDDLEWARE
+const allowedOrigins = isDevelopment 
+  ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
+  : [
+      'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
+    ];
+
+// Apply CORS FIRST - before other middleware
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 // Production security headers
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -37,13 +52,6 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// CORS configuration - fixed to match actual deployment URL
-const allowedOrigins = isDevelopment 
-  ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
-  : [
-      'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
-    ];
-
 // Socket.IO server with proper CORS
 const io = new Server(server, {
   cors: {
@@ -57,11 +65,7 @@ const io = new Server(server, {
   maxHttpBufferSize: 1e6,
 });
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
-
+// Express middleware
 app.use(express.json({ limit: '10mb' }));
 
 // Interfaces
