@@ -21,8 +21,9 @@ const allowedOrigins = isDevelopment
   ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
   : [
       'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
+      'https://music-sync-app-git-main-vaibhav13s-projects.vercel.app', // Git branch domains
+      'https://music-sync-app-vaibhav13s-projects.vercel.app', // Alternative format
     ];
-
 // Apply CORS FIRST - before other middleware
 app.use(cors({
   origin: (origin, callback) => {
