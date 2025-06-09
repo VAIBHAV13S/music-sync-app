@@ -13,6 +13,9 @@ const server = createServer(app);
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy - IMPORTANT: Add this before rate limiting
+app.set('trust proxy', 1);
+
 // Production security headers
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -21,23 +24,27 @@ app.use(helmet({
 
 app.use(compression());
 
-// Rate limiting
+// Rate limiting with proper proxy support
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 100,
   message: 'Too many requests from this IP',
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.ip || req.socket.remoteAddress || 'unknown';
+  }
 });
 app.use('/api', limiter);
 
-// CORS configuration
+// CORS configuration - fixed to match actual deployment URL
 const allowedOrigins = isDevelopment 
   ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
   : [
-          'https://music-sync-app-vaibhav13s.vercel.app',
+      'https://music-sync-1hhi4k2ew-vaibhav13s-projects.vercel.app',
     ];
 
+// Socket.IO server with proper CORS
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -82,7 +89,7 @@ const userLastActivity = new Map<string, number>();
 // Utility functions
 const logProduction = (level: 'info' | 'error' | 'warn', message: string, data?: any): void => {
   if (isDevelopment || level !== 'info') {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = new Date().toISOString();
     console[level](`[${timestamp}] ${message}`, data || '');
   }
 };
@@ -343,7 +350,7 @@ io.on('connection', (socket) => {
 
     logProduction('info', `✅ Broadcasting video load: ${data.videoId} to ${room.participants.length - 1} participants`);
 
-    // 🚨 THIS WAS MISSING - BROADCAST VIDEO LOAD TO PARTICIPANTS
+    // Broadcast video load to participants
     socket.to(roomCode).emit('video-load-sync', { 
       videoId: data.videoId,
       timestamp: Date.now()
