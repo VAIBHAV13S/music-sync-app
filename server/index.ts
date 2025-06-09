@@ -25,11 +25,35 @@ const allowedOrigins = isDevelopment
 
 // Apply CORS FIRST - before other middleware
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // In development, log the rejected origin
+    if (isDevelopment) {
+      console.log('CORS rejected origin:', origin);
+    }
+    
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200 // Support legacy browsers
 }));
+
+// Handle preflight requests explicitly
+app.options('*', (req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
 // Production security headers
 app.use(helmet({
@@ -38,18 +62,23 @@ app.use(helmet({
 }));
 
 app.use(compression());
+app.use(express.json({ limit: '10mb' }));
 
-// Rate limiting with proper proxy support
+// Rate limiting with proper proxy support - MOVED AFTER CORS AND EXPRESS.JSON
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 100,
-  message: 'Too many requests from this IP',
+  message: { error: 'Too many requests from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
     return req.ip || req.socket.remoteAddress || 'unknown';
-  }
+  },
+  // Skip rate limiting for OPTIONS requests (preflight)
+  skip: (req) => req.method === 'OPTIONS'
 });
+
+// Apply rate limiting only to API routes
 app.use('/api', limiter);
 
 // Socket.IO server with proper CORS
@@ -64,9 +93,6 @@ const io = new Server(server, {
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
 });
-
-// Express middleware
-app.use(express.json({ limit: '10mb' }));
 
 // Interfaces
 interface Room {
