@@ -460,9 +460,10 @@ app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
-  // Add CORS headers to error responses
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  if (!origin) {
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
   }
@@ -471,9 +472,10 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => 
 
 // 404 handler
 app.use('*', (req: Request, res: Response): void => {
-  // Add CORS headers to 404 responses
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  if (!origin) {
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
   }
