@@ -25,6 +25,13 @@ console.log('[Checkpoint 3] All modules imported. Redis client is initializing..
 const app = express();
 const server = createServer(app);
 
+// --- SOLUTION: DEFINE HEALTH CHECK FIRST ---
+// This route is now defined BEFORE any middleware (CORS, Helmet, etc.)
+// This guarantees it will always be reachable by the deployment platform.
+app.get('/', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Environment configuration
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const PORT = process.env.PORT || 3001;
@@ -71,12 +78,6 @@ app.use(cors(corsOptions));
 app.use(helmet());
 app.use(compression());
 app.use(express.json());
-
-// Root health check route for deployment platforms like Railway
-// IMPORTANT: This must come BEFORE the rate limiter.
-app.get('/', (_req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Music Sync Server is running.' });
-});
 
 // Rate limiting with proper proxy support
 const limiter = rateLimit({
