@@ -34,7 +34,7 @@ app.get('/', (_req, res) => {
 
 // Environment configuration
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Trust proxy - IMPORTANT: Add this before rate limiting
 app.set('trust proxy', 1);
@@ -443,7 +443,7 @@ process.on('SIGINT', () => {
 
 // Start server
 console.log('[Checkpoint 4] Configuration complete. Attempting to start server...');
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('[Checkpoint 5] Server is listening!');
   logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
   logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
