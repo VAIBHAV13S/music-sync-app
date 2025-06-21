@@ -382,42 +382,56 @@ app.use('*', (_req: Request, res: Response): void => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logProduction('info', 'SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    logProduction('info', 'Process terminated');
+const gracefulShutdown = (signal: string) => {
+  logProduction('info', `${signal} received, shutting down gracefully`);
+  
+  // 1. Stop accepting new connections
+  server.close(async () => {
+    logProduction('info', 'HTTP server closed.');
+    
+    // 2. Disconnect from Redis
+    await redis.quit();
+    logProduction('info', 'Redis connection closed.');
+    
+    // 3. Exit the process
     process.exit(0);
   });
-});
 
-process.on('SIGINT', () => {
-  logProduction('info', 'SIGINT received, shutting down gracefully');
-  server.close(() => {
-    logProduction('info', 'Process terminated');
-    process.exit(0);
-  });
-});
+  // Force shutdown after a timeout
+  setTimeout(() => {
+    logProduction('error', 'Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000); // 10 seconds
+};
 
-// --- FINAL SOLUTION: Event-Driven Server Start ---
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+
+// --- FINAL SOLUTION: Parallel Startup for Fast Health Checks ---
 const startServer = () => {
-  console.log('[Checkpoint 4] Configuration complete. Waiting for Redis connection...');
+  console.log('[Checkpoint 4] Configuration complete. Starting server and Redis connection in parallel...');
 
-  // This is the canonical way to handle ioredis startup.
-  // We wait for the 'ready' event before starting the HTTP server.
-  redis.on('ready', () => {
-    logProduction('info', '✅ Redis connection established.');
+  // Start the HTTP server immediately to pass the health check.
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log('[Checkpoint 5] Server is listening!');
+    logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
+    logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Now that the server is listening, handle Redis events.
+    // The app is "live" but may not be fully "ready" until Redis connects.
+    redis.on('ready', () => {
+      logProduction('info', '✅ Redis connection established. Server is fully ready.');
+    });
 
-    // Now that Redis is ready, start the server.
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log('[Checkpoint 5] Server is listening!');
-      logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
-      logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    redis.on('error', (error) => {
+      // Log the error but don't exit. The Redis client might reconnect.
+      logProduction('error', '❌ Redis connection error:', error);
     });
   });
 
-  // If the Redis client cannot connect, log the error and exit.
-  redis.on('error', (error) => {
-    logProduction('error', '❌ Redis connection error:', error);
+  server.on('error', (error) => {
+    logProduction('error', '❌ HTTP server error:', error);
     process.exit(1);
   });
 };
