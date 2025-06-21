@@ -444,8 +444,11 @@ const startServer = () => {
     logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
     logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     
+    // Log memory usage
+    const memUsage = process.memoryUsage();
+    console.log(`Memory usage - RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB, Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+    
     // Now that the server is listening, handle Redis events.
-    // The app is "live" but may not be fully "ready" until Redis connects.
     redis.on('ready', () => {
       logProduction('info', '✅ Redis connection established. Server is fully ready.');
     });
