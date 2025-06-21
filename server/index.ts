@@ -40,6 +40,19 @@ import { redis } from './src/redisClient';
 
 console.log('[Checkpoint 3] All modules imported. Redis client is initializing...');
 
+// ADD REDIS EVENT HANDLERS IMMEDIATELY AFTER IMPORT
+redis.on('connect', () => {
+  console.log('🔗 Redis client connected');
+});
+
+redis.on('ready', () => {
+  console.log('✅ Redis connection established. Server is fully ready.');
+});
+
+redis.on('error', (error) => {
+  console.log('❌ Redis connection error:', error);
+});
+
 const app = express();
 const server = createServer(app);
 
