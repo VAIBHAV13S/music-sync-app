@@ -1,22 +1,26 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import YouTubeSearch from "../components/YouTubeSearch";
-import YouTubePlayer, { YouTubePlayerRef } from "../components/YouTubePlayer";
-import { backgroundThemes, buttonThemes } from "../utils/themes";
-import { useSync } from "../hooks/useSync";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useSyncContext } from '../contexts/SyncContext';
+import YouTubePlayer, { YouTubePlayerRef } from '../components/YouTubePlayer';
+import YouTubeSearch from '../components/YouTubeSearch';
+import { backgroundThemes } from '../utils/themes';
 
 function HostRoom() {
   const { mode } = useParams<{ mode: string }>();
   const navigate = useNavigate();
-  const searchParams = new URLSearchParams(window.location.search);
-  let roomCode = searchParams.get("room") || "";
-  if (!roomCode) {
-    roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    window.history.replaceState({}, '', `${window.location.pathname}?room=${roomCode}`);
-  } 
   
-  const stableRoomCode = useMemo(() => roomCode, [roomCode]);
-  
+  const {
+    room,
+    isConnected,
+    participantCount,
+    createRoom,
+    leaveRoom,
+    syncPlay,
+    syncPause,
+    syncSeek,
+    syncVideoLoad,
+  } = useSyncContext();
+
   const [selectedVideoId, setSelectedVideoId] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
@@ -30,18 +34,52 @@ function HostRoom() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   
   const playerSyncRef = useRef<YouTubePlayerRef>(null);
-  
-  const { connected, participantCount, syncPlay, syncPause, syncSeek, syncVideoLoad } = useSync({
-    roomCode: stableRoomCode,
-    isHost: true
-  });
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    let roomCode = searchParams.get("room");
+
+    if (!roomCode) {
+      roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      window.history.replaceState({}, '', `${window.location.pathname}?room=${roomCode}`);
+    }
+    
+    if (roomCode && !room) {
+      createRoom(roomCode).catch(err => {
+        console.error("Failed to create room:", err);
+        alert(`Error: ${err.message}. The room code might be taken.`);
+        navigate('/');
+      });
+    }
+  }, [createRoom, navigate, room]);
+
+  // Show a loading screen until the room is created and available in the context
+  if (!room) {
+    return (
+      <div className={`min-h-screen ${backgroundThemes.dark} text-white flex flex-col items-center justify-center`}>
+        <div className="text-center p-8">
+          <div className="w-16 h-16 mx-auto mb-6 bg-purple-500/20 rounded-2xl flex items-center justify-center">
+            <svg className="w-8 h-8 text-purple-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-purple-300 mb-3">
+            Initializing Session...
+          </h3>
+          <p className="text-gray-400">
+            Please wait while we set up your room.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Track session start time
   useEffect(() => {
-    if (connected && !sessionStartTime) {
+    if (isConnected && !sessionStartTime) {
       setSessionStartTime(new Date());
     }
-  }, [connected, sessionStartTime]);
+  }, [isConnected, sessionStartTime]);
 
   // Track songs played
   useEffect(() => {
@@ -62,7 +100,7 @@ function HostRoom() {
 
   // Generate QR Code URL
   const generateQRCode = () => {
-    const joinUrl = `${window.location.origin}/join/${mode}?room=${roomCode}`;
+    const joinUrl = `${window.location.origin}/join/${mode}?room=${room.roomCode}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
   };
 
@@ -79,7 +117,7 @@ function HostRoom() {
 
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(roomCode);
+      await navigator.clipboard.writeText(room.roomCode);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
@@ -88,13 +126,13 @@ function HostRoom() {
   };
 
   const shareRoom = async () => {
-    const shareUrl = `${window.location.origin}/join/${mode}?room=${roomCode}`;
+    const shareUrl = `${window.location.origin}/join/${mode}?room=${room.roomCode}`;
     
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Join my music listening session',
-          text: `Join me for a synchronized music session. Room code: ${roomCode}`,
+          text: `Join me for a synchronized music session. Room code: ${room.roomCode}`,
           url: shareUrl,
         });
       } catch (err) {
@@ -119,6 +157,7 @@ function HostRoom() {
 
   const endSession = () => {
     if (confirm('Are you sure you want to end this session? All participants will be disconnected.')) {
+      leaveRoom();
       navigate('/');
     }
   };
@@ -359,18 +398,18 @@ function HostRoom() {
               <div className="flex flex-wrap items-center justify-center gap-4">
                 {/* Connection Status */}
                 <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
-                  connected 
+                  isConnected 
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
                     : 'bg-red-500/10 border-red-500/30 text-red-300'
                 }`}>
-                  <div className={`w-3 h-3 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`}></div>
+                  <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`}></div>
                   <span className="font-semibold">
-                    {connected ? 'Connected' : 'Disconnected'}
+                    {isConnected ? 'Connected' : 'Disconnected'}
                   </span>
                 </div>
                 
                 {/* Connection Quality */}
-                {connected && (
+                {isConnected && (
                   <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
                     connectionQualityConfig[connectionQuality].bg
                   } ${connectionQualityConfig[connectionQuality].border} ${connectionQualityConfig[connectionQuality].color}`}>
@@ -382,7 +421,7 @@ function HostRoom() {
                 )}
                 
                 {/* Participant Count */}
-                {connected && (
+                {isConnected && (
                   <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-300 backdrop-blur-xl">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -418,7 +457,7 @@ function HostRoom() {
                 {/* Room Code Display */}
                 <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 border border-gray-600/50 rounded-2xl p-8 mb-8 group hover:from-gray-700/80 hover:to-gray-600/80 transition-all duration-300 cursor-pointer" onClick={copyToClipboard}>
                   <div className="text-4xl font-mono font-black tracking-[0.4em] text-center text-white group-hover:scale-105 transition-transform duration-300 select-all">
-                    {roomCode}
+                    {room.roomCode}
                   </div>
                   <div className="text-center text-xs text-gray-400 mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Click to copy
@@ -474,7 +513,7 @@ function HostRoom() {
                   </button>
                   <button
                     onClick={() => {
-                      const text = `Join my music session! Room code: ${roomCode}\n\nJoin here: ${window.location.origin}/join/${mode}?room=${roomCode}`;
+                      const text = `Join my music session! Room code: ${room.roomCode}\n\nJoin here: ${window.location.origin}/join/${mode}?room=${room.roomCode}`;
                       navigator.clipboard.writeText(text);
                       setCopySuccess(true);
                       setTimeout(() => setCopySuccess(false), 2000);
@@ -528,7 +567,7 @@ function HostRoom() {
             )}
 
             {/* Participant Status */}
-            {participantCount === 0 && connected && selectedVideoId && (
+            {participantCount === 0 && isConnected && selectedVideoId && (
               <div className="text-center">
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-8 backdrop-blur-xl">
                   <div className="w-16 h-16 mx-auto mb-6 bg-amber-500/20 rounded-2xl flex items-center justify-center">
@@ -596,7 +635,7 @@ function HostRoom() {
             )}
 
             {/* Connection Error */}
-            {!connected && (
+            {!isConnected && (
               <div className="text-center">
                 <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-12 backdrop-blur-xl max-w-md mx-auto">
                   <div className="w-20 h-20 mx-auto mb-8 bg-red-500/20 rounded-3xl flex items-center justify-center">
