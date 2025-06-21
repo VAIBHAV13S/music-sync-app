@@ -43,25 +43,8 @@ console.log('[Checkpoint 3] All modules imported. Redis client is initializing..
 const app = express();
 const server = createServer(app);
 
-// --- SOLUTION: DEFINE HEALTH CHECK FIRST ---
-// This route is now defined BEFORE any middleware (CORS, Helmet, etc.)
-// This guarantees it will always be reachable by the deployment platform.
-app.get('/', (req, res) => {
-  const timestamp = new Date().toISOString();
-  const userAgent = req.get('User-Agent') || 'unknown';
-  const ip = req.ip || req.connection.remoteAddress || 'unknown';
-  
-  console.log(`[${timestamp}] Health check request from ${ip}, User-Agent: ${userAgent}`);
-  
-  res.set({
-    'Content-Type': 'text/plain',
-    'Cache-Control': 'no-cache',
-    'Connection': 'close'
-  });
-  res.status(200).send('OK');
-  
-  console.log(`[${timestamp}] Health check response sent: 200 OK`);
-});
+// REMOVE THE HEALTH CHECK ROUTE ENTIRELY
+// app.get('/', (req, res) => { ... });  // <-- Comment this out or delete
 
 // Add a more detailed health check endpoint
 app.get('/health', (_req, res) => {
@@ -75,7 +58,7 @@ app.get('/health', (_req, res) => {
 
 // Environment configuration
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = parseInt(process.env.PORT || '8080', 10); // Change from 3001 to 8080
+const PORT = parseInt(process.env.PORT || '3001', 10); // Change from 3001 to 8080
 
 // Trust proxy - IMPORTANT: Add this before rate limiting
 app.set('trust proxy', 1);
