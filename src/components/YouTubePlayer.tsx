@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import YouTube, { YouTubeProps } from 'react-youtube';
 import type { PlaybackState } from '../services/realSocketService';
 
@@ -8,7 +8,6 @@ interface YouTubePlayerProps {
   onStateChange?: (state: number) => void;
   onSyncPlay?: (videoId: string, currentTime: number) => void;
   onSyncPause?: (videoId: string, currentTime: number) => void;
-  onSyncSeek?: (videoId: string, currentTime: number, isPlaying: boolean) => void;
   onVideoLoad?: (videoId: string) => void;
   isHost?: boolean;
   initialSyncState?: PlaybackState | null;
@@ -24,11 +23,10 @@ export interface YouTubePlayerRef {
 const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(({ 
   videoId, 
   onPlayerReady, 
-  onStateChange, 
+  onStateChange,
   onSyncPlay,
-  onSyncPause, 
-  onSyncSeek,
-  onVideoLoad, // ✅ Fixed: Added missing prop
+  onSyncPause,
+  onVideoLoad,
   isHost = false,
   initialSyncState
 }, ref) => {

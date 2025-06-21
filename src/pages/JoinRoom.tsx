@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSyncContext } from '../contexts/SyncContext';
 import YouTubePlayer, { YouTubePlayerRef } from '../components/YouTubePlayer';
 import { backgroundThemes } from '../utils/themes';
-import { PlaybackState } from '../services/realSocketService';
 
 function JoinRoom() {
   const { mode } = useParams<{ mode: string }>();
@@ -22,8 +21,8 @@ function JoinRoom() {
 
   const joined = !!room;
 
-  const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
-  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [connectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
+  const [sessionStartTime] = useState<Date | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   const playerSyncRef = useRef<YouTubePlayerRef>(null);

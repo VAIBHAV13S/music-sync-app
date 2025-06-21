@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSyncContext } from '../contexts/SyncContext';
 import YouTubePlayer, { YouTubePlayerRef } from '../components/YouTubePlayer';
@@ -17,7 +17,6 @@ function HostRoom() {
     leaveRoom,
     syncPlay,
     syncPause,
-    syncSeek,
     syncVideoLoad,
   } = useSyncContext();
 
@@ -192,10 +191,6 @@ function HostRoom() {
 
   const handleSyncPause = (videoId: string, currentTime: number) => {
     syncPause(videoId, currentTime);
-  };
-
-  const handleSyncSeek = (videoId: string, currentTime: number, isPlaying: boolean) => {
-    syncSeek(videoId, currentTime, isPlaying);
   };
 
   return (
@@ -626,7 +621,6 @@ function HostRoom() {
                     videoId={selectedVideoId}
                     onSyncPlay={handleSyncPlay}
                     onSyncPause={handleSyncPause}
-                    onSyncSeek={handleSyncSeek}
                     onVideoLoad={handleVideoLoad}
                     isHost={true}
                   />

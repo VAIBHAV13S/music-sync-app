@@ -19,7 +19,7 @@ class YouTubeAPIService {
     return import.meta.env.VITE_SOCKET_SERVER_URL || '';
   }
 
-  static async searchVideos(query: string, maxResults: number = 10): Promise<SearchResult[]> {
+  static async searchVideos(query: string): Promise<SearchResult[]> {
     if (!this.BASE_URL) {
       throw new Error("VITE_SOCKET_SERVER_URL is not defined in the environment variables.");
     }

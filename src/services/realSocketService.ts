@@ -419,7 +419,7 @@ class RealSocketService {
         reject(new Error('Ping timeout'));
       }, 5000);
 
-      this.socket!.emit('ping', (response: any) => {
+      this.socket!.emit('ping', (_response: any) => {
         clearTimeout(timeout);
         const latency = Date.now() - startTime;
         resolve(latency);
