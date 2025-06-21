@@ -3,8 +3,26 @@ import path from 'path';
 
 console.log('[Checkpoint 1] Starting server script...');
 
-// Load environment variables from the root .env file
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Try multiple possible locations for .env file
+const envPaths = [
+  path.join(__dirname, '../.env'),           // For ts-node-dev
+  path.join(__dirname, '../../.env'),        // For compiled dist
+  path.join(process.cwd(), '.env'),          // Fallback
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  const result = dotenv.config({ path: envPath });
+  if (!result.error) {
+    console.log(`Environment loaded from: ${envPath}`);
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.warn('No .env file found, using system environment variables only');
+}
 
 console.log('[Checkpoint 2] Environment variables loaded.');
 
@@ -29,7 +47,7 @@ const server = createServer(app);
 // This route is now defined BEFORE any middleware (CORS, Helmet, etc.)
 // This guarantees it will always be reachable by the deployment platform.
 app.get('/', (_req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).send('OK');
 });
 
 // Environment configuration
