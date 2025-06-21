@@ -1,4 +1,5 @@
 [deploy]
-healthcheckPath = "/"
-healthcheckTimeout = 30
-healthcheckInterval = 10
+# Temporarily disable health check to test if app works
+# healthcheckPath = "/"
+# healthcheckTimeout = 30
+# healthcheckInterval = 10

@@ -46,14 +46,21 @@ const server = createServer(app);
 // --- SOLUTION: DEFINE HEALTH CHECK FIRST ---
 // This route is now defined BEFORE any middleware (CORS, Helmet, etc.)
 // This guarantees it will always be reachable by the deployment platform.
-app.get('/', (_req, res) => {
-  // Set explicit headers for Railway
+app.get('/', (req, res) => {
+  const timestamp = new Date().toISOString();
+  const userAgent = req.get('User-Agent') || 'unknown';
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  
+  console.log(`[${timestamp}] Health check request from ${ip}, User-Agent: ${userAgent}`);
+  
   res.set({
     'Content-Type': 'text/plain',
     'Cache-Control': 'no-cache',
     'Connection': 'close'
   });
   res.status(200).send('OK');
+  
+  console.log(`[${timestamp}] Health check response sent: 200 OK`);
 });
 
 // Add a more detailed health check endpoint
