@@ -398,16 +398,32 @@ process.on('SIGINT', () => {
   });
 });
 
-// Start server
-console.log('[Checkpoint 4] Configuration complete. Attempting to start server...');
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('[Checkpoint 5] Server is listening!');
-  logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
-  logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logProduction('info', `📡 WebSocket server ready`);
-  logProduction('info', `🔗 Health check: http://localhost:${PORT}/api/health`);
-  
-  if (isDevelopment) {
-    logProduction('info', `📊 Stats endpoint: http://localhost:${PORT}/api/stats`);
+// --- FINAL SOLUTION: Synchronous Server Start ---
+const startServer = async () => {
+  try {
+    console.log('[Checkpoint 4] Configuration complete. Verifying Redis connection...');
+    
+    // Wait for Redis to be ready. This will throw an error if it fails.
+    await redis.ping();
+    logProduction('info', '✅ Redis connection verified.');
+
+    // Now, start the server only after Redis is confirmed to be connected.
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log('[Checkpoint 5] Server is listening!');
+      logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
+      logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logProduction('info', `📡 WebSocket server ready`);
+      logProduction('info', `🔗 Health check: http://localhost:${PORT}/api/health`);
+      
+      if (isDevelopment) {
+        logProduction('info', `📊 Stats endpoint: http://localhost:${PORT}/api/stats`);
+      }
+    });
+
+  } catch (error) {
+    logProduction('error', '❌ Server failed to start:', error);
+    process.exit(1);
   }
-});
+};
+
+startServer();
