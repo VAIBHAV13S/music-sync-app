@@ -471,12 +471,11 @@ const startServer = () => {
 
     // Add a timeout to detect Redis connection issues
     setTimeout(async () => {
-      console.log(`⚠️ Redis status after 10 seconds: ${redis.status}`);
+      console.log(`⚠️ Redis status after 5 seconds: ${redis.status}`); // Changed from 10 to 5
       
       if (redis.status !== 'ready') {
         console.log('⚠️ Redis might be having connection issues');
         
-        // Try a simple ping to test the connection
         try {
           const result = await redis.ping();
           console.log(`✅ Redis ping successful: ${result}`);
@@ -484,7 +483,7 @@ const startServer = () => {
           console.log('❌ Redis ping failed:', error);
         }
       }
-    }, 10000);
+    }, 5000); // Changed from 10000 to 5000
   });
 
   server.on('error', (error) => {
