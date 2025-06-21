@@ -22,40 +22,12 @@ interface RoomResponse {
   error?: string;
 }
 
-// Define all events the server can send to the client
-interface ServerToClientEvents {
-  'playback-sync': (data: PlaybackState) => void;
-  'user-joined': (data: { userId: string; roomCode: string; participantCount: number }) => void;
-  'user-left': (data: { userId: string; roomCode: string; participantCount: number }) => void;
-  'host-changed': (data: { newHostId: string; roomCode: string }) => void;
-  'video-load-sync': (data: { videoId: string }) => void;
-  'room-error': (data: { error: string; roomCode?: string }) => void;
-  'room-update': (data: RoomData) => void;
-
-  // Add reserved connection events to satisfy strong typing
-  reconnect: (attemptNumber: number) => void;
-  reconnect_error: (error: Error) => void;
-  reconnect_failed: () => void;
-}
-
-// Define all events the client can send to the server
-interface ClientToServerEvents {
-  'create-room': (data: { roomCode: string }, callback: (response: RoomResponse) => void) => void;
-  'join-room': (data: { roomCode: string }, callback: (response: RoomResponse) => void) => void;
-  'leave-room': () => void;
-  'sync-play': (data: { videoId: string; currentTime: number }) => void;
-  'sync-pause': (data: { videoId: string; currentTime: number }) => void;
-  'sync-seek': (data: { videoId: string; currentTime: number; isPlaying: boolean }) => void;
-  'sync-video-load': (data: { videoId: string }) => void;
-  'ping': (callback: (response: any) => void) => void;
-}
-
 interface EventCallback<T = any> {
   (data: T): void;
 }
 
 class RealSocketService {
-  private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
+  private socket: Socket | null = null;
   private _connected = false;
   private _connecting = false;
   private serverUrl = import.meta.env.VITE_SOCKET_SERVER_URL || 'https://music-sync-app-production.up.railway.app';
@@ -86,13 +58,11 @@ class RealSocketService {
       this.log('info', 'WebSocket connected successfully');
       this._connected = true;
       this.reconnectAttempts = 0;
-      this.emitToListeners('connect', undefined); // Forward event
     });
 
     this.socket.on('disconnect', (reason: string) => {
       this.log('warn', `WebSocket disconnected: ${reason}`);
       this._connected = false;
-      this.emitToListeners('disconnect', reason); // Forward event
       
       // Don't log manual disconnects as errors
       if (reason !== 'io client disconnect') {
@@ -119,7 +89,6 @@ class RealSocketService {
     this.socket.on('connect_error', (error: Error) => {
       this.log('error', 'Connection error', error.message);
       this._connected = false;
-      this.emitToListeners('connect_error', error); // Forward event
     });
 
     // Set up forwarding for tracked events
@@ -129,7 +98,7 @@ class RealSocketService {
   private setupEventForwarding(): void {
     if (!this.socket) return;
 
-    const events: (keyof ServerToClientEvents)[] = [
+    const events = [
       'playback-sync',
       'user-joined', 
       'user-left',
@@ -173,12 +142,14 @@ class RealSocketService {
     };
   }
 
-  public connect = (): Promise<void> => {
-    if (this.socket?.connected) {
+  async connect(): Promise<void> {
+    // If already connected, return immediately
+    if (this._connected && this.socket?.connected) {
       this.log('info', 'Already connected to WebSocket');
       return Promise.resolve();
     }
 
+    // If connection is in progress, return the existing promise
     if (this._connecting && this.connectionPromise) {
       this.log('info', 'Connection already in progress...');
       return this.connectionPromise;
@@ -187,10 +158,12 @@ class RealSocketService {
     this._connecting = true;
     this.connectionPromise = this.performConnection();
 
-    return this.connectionPromise.finally(() => {
+    try {
+      await this.connectionPromise;
+    } finally {
       this._connecting = false;
       this.connectionPromise = null;
-    });
+    }
   }
 
   private performConnection(): Promise<void> {
@@ -383,20 +356,6 @@ class RealSocketService {
   onVideoLoadSync(callback: EventCallback<{ videoId: string }>): () => void {
     return this.addListener('video-load-sync', callback);
   }
-
-  // Add these public methods for connection events
-  onConnect(callback: EventCallback<void>): () => void {
-    return this.addListener('connect', callback);
-  }
-
-  onDisconnect(callback: EventCallback<string>): () => void {
-    return this.addListener('disconnect', callback);
-  }
-
-  onConnectError(callback: EventCallback<Error>): () => void {
-    return this.addListener('connect_error', callback);
-  }
-
   // Event subscription methods with cleanup
   onPlaybackSync(callback: EventCallback<PlaybackState>): () => void {
     console.log('🎯 Setting up playback sync listener');
@@ -436,7 +395,7 @@ class RealSocketService {
         reject(new Error('Ping timeout'));
       }, 5000);
 
-      this.socket!.emit('ping', (_response: any) => {
+      this.socket!.emit('ping', (response: any) => {
         clearTimeout(timeout);
         const latency = Date.now() - startTime;
         resolve(latency);
@@ -449,11 +408,19 @@ class RealSocketService {
     return this._connected && Boolean(this.socket?.connected);
   }
 
-  public isConnecting: boolean = false;
-  public connectionState: string = 'disconnected';
+  get isConnecting(): boolean {
+    return this._connecting;
+  }
 
-  public get socketId(): string | undefined {
-    return this.socket?.id;
+  get currentRoom(): string | null {
+    return this.currentRoomCode;
+  }
+
+  get connectionState(): string {
+    if (!this.socket) return 'disconnected';
+    if (this._connecting) return 'connecting';
+    if (this._connected) return 'connected';
+    return 'disconnected';
   }
 
   // Debug info

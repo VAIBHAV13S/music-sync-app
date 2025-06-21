@@ -1,56 +1,66 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useSyncContext } from '../contexts/SyncContext';
-import YouTubePlayer, { YouTubePlayerRef } from '../components/YouTubePlayer';
-import { backgroundThemes } from '../utils/themes';
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import YouTubePlayer, { YouTubePlayerRef } from "../components/YouTubePlayer";
+import { backgroundThemes, buttonThemes } from "../utils/themes";
+import { useSync } from "../hooks/useSync";
+import type { PlaybackState } from "../services/realSocketService";
 
 function JoinRoom() {
   const { mode } = useParams<{ mode: string }>();
   const navigate = useNavigate();
-  const [inputRoomCode, setInputRoomCode] = useState("");
+  const [roomCode, setRoomCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
-
-  const {
-    room,
-    isConnected,
-    participantCount,
-    currentPlaybackState,
-    joinRoom,
-    leaveRoom,
-  } = useSyncContext();
-
-  const joined = !!room;
-
-  const [connectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
-  const [sessionStartTime] = useState<Date | null>(null);
+  const [joined, setJoined] = useState(false);
+  const [currentVideoId, setCurrentVideoId] = useState("");
+  const [syncState, setSyncState] = useState<PlaybackState | null>(null);
+  const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   const playerSyncRef = useRef<YouTubePlayerRef>(null);
 
+  // Track session start time
   useEffect(() => {
-    if (currentPlaybackState && playerSyncRef.current) {
-      playerSyncRef.current.applySyncState(currentPlaybackState);
+    if (joined && !sessionStartTime) {
+      setSessionStartTime(new Date());
     }
-  }, [currentPlaybackState]);
+  }, [joined, sessionStartTime]);
 
-  const handleJoinRoom = async () => {
-    if (!inputRoomCode.trim()) return;
-    setIsJoining(true);
-    try {
-      await joinRoom(inputRoomCode.toUpperCase());
-    } catch (error: any) {
-      console.error('Error joining room:', error);
-      alert(error.message || 'Failed to join room. Please check the code and try again.');
-    } finally {
-      setIsJoining(false);
-    }
-  };
+  // Simulate connection quality monitoring
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const qualities = ['excellent', 'good', 'poor'] as const;
+      const randomQuality = qualities[Math.floor(Math.random() * qualities.length)];
+      setConnectionQuality(randomQuality);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleLeaveRoom = () => {
-    if (confirm('Are you sure you want to leave this session?')) {
-      leaveRoom();
+  // Stable callback to prevent re-renders
+  const handleSyncReceived = useCallback((state: PlaybackState) => {
+    console.log('🎯 JoinRoom received sync:', state);
+    setCurrentVideoId(state.videoId);
+    setSyncState(state);
+    
+    if (playerSyncRef.current) {
+      playerSyncRef.current.applySyncState(state);
     }
-  };
+  }, []);
+
+  // Only initialize sync when actually joined and roomCode is stable
+  const stableRoomCode = useMemo(() => joined ? roomCode : "", [joined, roomCode]);
+  
+  const handleVideoLoadReceived = useCallback((videoId: string) => {
+    console.log('📹 JoinRoom received video load:', videoId);
+    setCurrentVideoId(videoId);
+  }, []);
+
+  const { connected, participantCount } = useSync({
+    roomCode: stableRoomCode,
+    isHost: false,
+    onSyncReceived: handleSyncReceived,
+    onVideoLoadReceived: handleVideoLoadReceived
+  });
 
   // Mode detection
   const isGroupMode = mode === "group";
@@ -82,6 +92,52 @@ function JoinRoom() {
     } else {
       document.exitFullscreen();
       setIsFullscreen(false);
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    if (!roomCode.trim()) return;
+    
+    setIsJoining(true);
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SOCKET_SERVER_URL}/api/rooms/${roomCode}`);
+      
+      if (response.ok) {
+        setJoined(true);
+        console.log(`✅ Room ${roomCode} exists, joining...`);
+        setTimeout(() => {
+          console.log('🔄 Connection state after join:', {
+            connected,
+            participantCount,
+            roomCode: stableRoomCode
+          });
+        }, 2000);
+      } else {
+        alert('Room not found. Please check the room code.');
+        console.log(`❌ Room ${roomCode} not found`);
+      }
+    } catch (error) {
+      console.error('Error checking room:', error);
+      alert('Failed to connect to server. Please try again.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleJoinRoom();
+    }
+  };
+
+  const handleLeaveRoom = () => {
+    if (confirm('Are you sure you want to leave this session?')) {
+      setJoined(false);
+      setRoomCode("");
+      setCurrentVideoId("");
+      setSyncState(null);
+      setSessionStartTime(null);
     }
   };
 
@@ -156,18 +212,18 @@ function JoinRoom() {
                 <div className="flex flex-wrap items-center justify-center gap-4">
                   {/* Connection Status */}
                   <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
-                    isConnected 
+                    connected 
                       ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
                       : 'bg-red-500/10 border-red-500/30 text-red-300'
                   }`}>
-                    <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`}></div>
+                    <div className={`w-3 h-3 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`}></div>
                     <span className="font-semibold">
-                      {isConnected ? 'Synchronized' : 'Disconnected'}
+                      {connected ? 'Synchronized' : 'Disconnected'}
                     </span>
                   </div>
                   
                   {/* Connection Quality */}
-                  {isConnected && (
+                  {connected && (
                     <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
                       connectionQualityConfig[connectionQuality].bg
                     } ${connectionQualityConfig[connectionQuality].border} ${connectionQualityConfig[connectionQuality].color}`}>
@@ -179,7 +235,7 @@ function JoinRoom() {
                   )}
                   
                   {/* Participant Count */}
-                  {isConnected && participantCount > 0 && (
+                  {connected && participantCount > 0 && (
                     <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-300 backdrop-blur-xl">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -215,7 +271,7 @@ function JoinRoom() {
                   {/* Room Code Display */}
                   <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 border border-gray-600/50 rounded-2xl p-6 mb-6">
                     <div className="text-3xl font-mono font-black tracking-[0.4em] text-center text-white">
-                      {room.roomCode}
+                      {roomCode}
                     </div>
                   </div>
 
@@ -241,7 +297,7 @@ function JoinRoom() {
             <div className="max-w-6xl mx-auto space-y-12">
 
               {/* Sync Status */}
-              {currentPlaybackState && (
+              {syncState && (
                 <div className="text-center">
                   <div className="bg-purple-500/10 border border-purple-500/20 rounded-3xl p-8 backdrop-blur-xl">
                     <div className="w-16 h-16 mx-auto mb-6 bg-purple-500/20 rounded-2xl flex items-center justify-center">
@@ -253,7 +309,7 @@ function JoinRoom() {
                       Synchronized Playback
                     </h3>
                     <p className="text-gray-400 mb-4">
-                      {currentPlaybackState.isPlaying ? 'Playing' : 'Paused'} at {Math.floor(currentPlaybackState.currentTime)}s
+                      {syncState.isPlaying ? 'Playing' : 'Paused'} at {Math.floor(syncState.currentTime)}s
                     </p>
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-lg text-purple-300 text-sm">
                       <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
@@ -264,7 +320,7 @@ function JoinRoom() {
               )}
 
               {/* Connection Status */}
-              {!isConnected && (
+              {!connected && (
                 <div className="text-center">
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-8 backdrop-blur-xl">
                     <div className="w-16 h-16 mx-auto mb-6 bg-amber-500/20 rounded-2xl flex items-center justify-center">
@@ -283,7 +339,7 @@ function JoinRoom() {
               )}
 
               {/* YouTube Player */}
-              {currentPlaybackState?.videoId && (
+              {currentVideoId && (
                 <div>
                   <div className="text-center mb-12">
                     <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Now Playing</h2>
@@ -293,16 +349,16 @@ function JoinRoom() {
                   <div className="bg-gray-900/40 backdrop-blur-2xl border border-gray-700/50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500">
                     <YouTubePlayer 
                       ref={playerSyncRef}
-                      videoId={currentPlaybackState.videoId}
+                      videoId={currentVideoId}
                       isHost={false}
-                      initialSyncState={currentPlaybackState}
+                      initialSyncState={syncState}
                     />
                   </div>
                 </div>
               )}
 
               {/* Waiting for Host */}
-              {!currentPlaybackState?.videoId && isConnected && (
+              {!currentVideoId && connected && (
                 <div className="text-center">
                   <div className="bg-blue-500/10 border border-blue-500/20 rounded-3xl p-12 backdrop-blur-xl">
                     <div className="w-20 h-20 mx-auto mb-8 bg-blue-500/20 rounded-3xl flex items-center justify-center">
@@ -397,8 +453,9 @@ function JoinRoom() {
                   <div className="relative">
                     <input
                       type="text"
-                      value={inputRoomCode}
-                      onChange={(e) => setInputRoomCode(e.target.value.toUpperCase())}
+                      value={roomCode}
+                      onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                      onKeyPress={handleKeyPress}
                       placeholder="ABCD12"
                       maxLength={6}
                       className="w-full px-6 py-6 bg-gray-800/50 border border-gray-600/50 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-center text-3xl font-mono tracking-[0.3em] transition-all duration-200 hover:bg-gray-800/70 hover:border-gray-500/50"
@@ -408,7 +465,7 @@ function JoinRoom() {
                   
                   <button
                     onClick={handleJoinRoom}
-                    disabled={!inputRoomCode.trim() || isJoining}
+                    disabled={!roomCode.trim() || isJoining}
                     className="w-full px-8 py-6 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-2xl font-bold text-lg transition-all duration-200 transform hover:scale-105 disabled:transform-none shadow-xl shadow-purple-500/25 hover:shadow-purple-500/40 flex items-center justify-center gap-3"
                   >
                     {isJoining ? (
@@ -463,7 +520,7 @@ function JoinRoom() {
                     Connecting to Session
                   </h3>
                   <p className="text-gray-400">
-                    Establishing secure connection to room {inputRoomCode}...
+                    Establishing secure connection to room {roomCode}...
                   </p>
                   <div className="flex justify-center gap-1 mt-4">
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>

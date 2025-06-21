@@ -1,31 +1,3 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-console.log('[Checkpoint 1] Starting server script...');
-
-// Try multiple possible locations for .env file
-const envPaths = [
-  path.join(__dirname, '../.env'),           // For ts-node-dev
-  path.join(__dirname, '../../.env'),        // For compiled dist
-  path.join(process.cwd(), '.env'),          // Fallback
-];
-
-let envLoaded = false;
-for (const envPath of envPaths) {
-  const result = dotenv.config({ path: envPath });
-  if (!result.error) {
-    console.log(`Environment loaded from: ${envPath}`);
-    envLoaded = true;
-    break;
-  }
-}
-
-if (!envLoaded) {
-  console.warn('No .env file found, using system environment variables only');
-}
-
-console.log('[Checkpoint 2] Environment variables loaded.');
-
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -33,92 +5,72 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import compression from 'compression';
-import { logProduction, validateRoomCode } from './src/utils';
-import { PlaybackState } from './src/types';
-import * as roomManager from './src/roomManager';
-import { redis } from './src/redisClient';
-
-console.log('[Checkpoint 3] All modules imported. Redis client is initializing...');
-
-// ADD REDIS EVENT HANDLERS IMMEDIATELY AFTER IMPORT
-redis.on('connect', () => {
-  console.log('🔗 Redis client connected');
-});
-
-redis.on('ready', () => {
-  console.log('✅ Redis connection established. Server is fully ready.');
-});
-
-redis.on('error', (error) => {
-  console.log('❌ Redis connection error:', error);
-});
 
 const app = express();
 const server = createServer(app);
 
-// Add the root health check
-app.get('/', (_req, res) => {
-  res.status(200).send('OK');
-});
-
-// Add a more detailed health check endpoint
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: '1.0.0'
-  });
-});
-
 // Environment configuration
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = parseInt(process.env.PORT || '3001', 10); // Change from 3001 to 8080
+const PORT = process.env.PORT || 3001;
 
 // Trust proxy - IMPORTANT: Add this before rate limiting
 app.set('trust proxy', 1);
 
-// Define allowed origins for CORS
+// CORS configuration - MOVE THIS UP BEFORE OTHER MIDDLEWARE
 const allowedOrigins = isDevelopment 
-  ? ['http://localhost:5173', 'http://127.0.0.1:5173']
+  ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
   : [
-      'https://music-sync-app-ten.vercel.app', // <-- FIX: Removed trailing slash
-      /^https:\/\/music-sync-.*\.vercel\.app$/, // Regex for Vercel preview deployments
+      /^https:\/\/music-sync.*\.vercel\.app$/, // Allow all music-sync Vercel deployments
     ];
 
-// Use a single, robust CORS configuration for both Express and Socket.IO
-const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) {
-      logProduction('info', 'CORS: Allowing request with no origin');
+// Update CORS to handle regex
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    
+    // Check if origin matches any allowed pattern
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      // Handle regex patterns
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
       return callback(null, true);
     }
     
-    const isAllowed = allowedOrigins.some(allowedOrigin => 
-      typeof allowedOrigin === 'string' ? allowedOrigin === origin : allowedOrigin.test(origin)
-    );
-
-    if (isAllowed) {
-      logProduction('info', `CORS: Allowed origin: ${origin}`);
-      callback(null, true);
-    } else {
-      logProduction('warn', `CORS: Blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+    if (isDevelopment) {
+      console.log('CORS rejected origin:', origin);
     }
+    
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-};
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
+}));
+// Handle preflight requests explicitly
+app.options('*', (req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
-// Apply CORS to Express
-app.use(cors(corsOptions));
+// Production security headers
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 
-// Middleware setup
-app.use(helmet());
 app.use(compression());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Rate limiting with proper proxy support
+// Rate limiting with proper proxy support - MOVED AFTER CORS AND EXPRESS.JSON
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 100,
@@ -131,89 +83,207 @@ const limiter = rateLimit({
   // Skip rate limiting for OPTIONS requests (preflight)
   skip: (req) => req.method === 'OPTIONS'
 });
-app.use(limiter);
 
-app.get('/api/search', async (req: Request, res: Response) => {
-  const { q } = req.query;
-  const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+// Apply rate limiting only to API routes
+app.use('/api', limiter);
 
-  if (!YOUTUBE_API_KEY) {
-    console.error('YouTube API key is not configured on the server.');
-    return res.status(500).json({ error: 'Server configuration error.' });
+// Socket.IO server with proper CORS
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins, // This should now include your actual URL
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 10000,
+  maxHttpBufferSize: 1e6,
+});
+
+// Interfaces
+interface Room {
+  roomCode: string;
+  hostId: string;
+  participants: string[];
+  currentTrack?: PlaybackState | undefined;
+  createdAt: number;
+  lastActivity: number;
+}
+
+interface PlaybackState {
+  videoId: string;
+  currentTime: number;
+  isPlaying: boolean;
+  timestamp: number;
+}
+
+// Data storage
+const rooms = new Map<string, Room>();
+const userRooms = new Map<string, string>();
+const userLastActivity = new Map<string, number>();
+
+// Utility functions
+const logProduction = (level: 'info' | 'error' | 'warn', message: string, data?: any): void => {
+  if (isDevelopment || level !== 'info') {
+    const timestamp = new Date().toISOString();
+    console[level](`[${timestamp}] ${message}`, data || '');
   }
+};
 
-  if (!q || typeof q !== 'string') {
-    return res.status(400).json({ error: 'Search query "q" is required.' });
+const validateRoomCode = (roomCode: string): boolean => {
+  return typeof roomCode === 'string' && 
+         roomCode.length >= 4 && 
+         roomCode.length <= 10 && 
+         /^[A-Z0-9]+$/.test(roomCode);
+};
+
+const updateRoomActivity = (roomCode: string): void => {
+  const room = rooms.get(roomCode);
+  if (room) {
+    room.lastActivity = Date.now();
   }
+};
 
+// Helper functions
+function handleSyncEvent(socketId: string, data: any, isPlaying: boolean): void {
   try {
-    // Step 1: Search for video IDs
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
-    const searchResponse = await fetch(searchUrl);
-    if (!searchResponse.ok) throw new Error('Failed to fetch from YouTube API (search)');
-    const searchData = await searchResponse.json() as any;
-
-    const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-    if (!videoIds) {
-      res.json([]);
+    const roomCode = userRooms.get(socketId);
+    if (!roomCode) {
+      logProduction('warn', 'Sync event: User not in room');
       return;
     }
 
-    // Step 2: Get video details (including duration) for the found IDs
-    const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${YOUTUBE_API_KEY}`;
-    const detailsResponse = await fetch(detailsUrl);
-    if (!detailsResponse.ok) throw new Error('Failed to fetch from YouTube API (details)');
-    const detailsData = await detailsResponse.json() as any;
+    const room = rooms.get(roomCode);
+    if (!room) {
+      logProduction('warn', 'Sync event: Room not found');
+      return;
+    }
+    
+    if (room.hostId !== socketId) {
+      logProduction('warn', 'Sync event: Not authorized - not host');
+      return;
+    }
 
-    // Step 3: Format the response to match what the client expects
-    const results = detailsData.items.map((item: any) => ({
-      id: item.id,
-      title: item.snippet.title,
-      artist: item.snippet.channelTitle,
-      thumbnail: item.snippet.thumbnails.default.url,
-      duration: item.contentDetails.duration, // Send ISO duration, client will format it
-      description: item.snippet.description,
-    }));
+    if (!data.videoId || typeof data.currentTime !== 'number') {
+      logProduction('warn', 'Invalid sync data received:', data);
+      return;
+    }
 
-    return res.json(results);
+    const now = Date.now();
+    const playbackState: PlaybackState = {
+      videoId: data.videoId,
+      currentTime: Math.max(0, data.currentTime),
+      isPlaying,
+      timestamp: now
+    };
+
+    room.currentTrack = playbackState;
+    updateRoomActivity(roomCode);
+
+    logProduction('info', `✅ Host sync: ${isPlaying ? 'PLAY' : 'PAUSE'} ${data.videoId} at ${data.currentTime.toFixed(1)}s to ${room.participants.length - 1} participants`);
+
+    // Broadcast immediately to participants
+    io.to(roomCode).emit('playback-sync', playbackState);
+    
   } catch (error) {
-    console.error('YouTube search failed:', error);
-    return res.status(500).json({ error: 'Failed to perform YouTube search.' });
+    logProduction('error', 'handleSyncEvent error:', error);
   }
-});
+}
 
+function leaveRoom(socketId: string, roomCode: string): void {
+  const room = rooms.get(roomCode);
+  if (!room) return;
 
-// Socket.IO server setup
-const io = new Server(server, {
-  cors: corsOptions,
-  transports: ['websocket', 'polling'], // Important for compatibility with proxies
-});
+  room.participants = room.participants.filter(id => id !== socketId);
+  updateRoomActivity(roomCode);
+
+  io.to(roomCode).emit('user-left', {
+    userId: socketId,
+    roomCode,
+    participantCount: room.participants.length
+  });
+
+  if (room.hostId === socketId) {
+    if (room.participants.length > 0) {
+      room.hostId = room.participants[0];
+      io.to(roomCode).emit('host-changed', {
+        newHostId: room.hostId,
+        roomCode
+      });
+      logProduction('info', `Host transferred in room ${roomCode}`);
+    } else {
+      rooms.delete(roomCode);
+      logProduction('info', `Room deleted: ${roomCode}`);
+    }
+  }
+
+  userRooms.delete(socketId);
+}
+
+// Cleanup inactive rooms
+setInterval(() => {
+  const now = Date.now();
+  const inactivityTimeout = 2 * 60 * 60 * 1000; // 2 hours
+  const emptyRoomTimeout = 30 * 60 * 1000; // 30 minutes
+
+  for (const [roomCode, room] of rooms.entries()) {
+    const shouldDelete = 
+      (room.participants.length === 0 && now - room.lastActivity > emptyRoomTimeout) ||
+      (now - room.lastActivity > inactivityTimeout);
+
+    if (shouldDelete) {
+      rooms.delete(roomCode);
+      logProduction('info', `🧹 Cleaned up room: ${roomCode}`);
+    }
+  }
+}, 10 * 60 * 1000); // Check every 10 minutes
 
 // Socket connection handling
 io.on('connection', (socket) => {
+  userLastActivity.set(socket.id, Date.now());
   logProduction('info', `👤 User connected: ${socket.id}`);
 
-  // Add this ping handler
-  socket.on('ping', (callback) => {
-    if (typeof callback === 'function') {
-      callback({ status: 'ok' });
-    }
+  // Activity tracking middleware
+  socket.use((_, next) => {
+    userLastActivity.set(socket.id, Date.now());
+    next();
   });
 
   // Create room handler
-  socket.on('create-room', async (data, callback) => {
+  socket.on('create-room', (data, callback) => {
     try {
       const { roomCode } = data;
+
       if (!validateRoomCode(roomCode)) {
-        return callback({ success: false, error: 'Invalid room code format' });
+        callback({ success: false, error: 'Invalid room code format' });
+        return;
       }
 
-      if (await roomManager.getRoom(roomCode)) {
-        return callback({ success: false, error: 'Room already exists' });
+      if (rooms.has(roomCode)) {
+        const existingRoom = rooms.get(roomCode)!;
+        
+        if (existingRoom.hostId === socket.id || existingRoom.participants.includes(socket.id)) {
+          updateRoomActivity(roomCode);
+          callback({ success: true, room: existingRoom });
+          return;
+        }
+        
+        callback({ success: false, error: 'Room already exists' });
+        return;
       }
 
-      const room = await roomManager.createRoom(roomCode, socket.id);
+      const room: Room = {
+        roomCode,
+        hostId: socket.id,
+        participants: [socket.id],
+        currentTrack: undefined,
+        createdAt: Date.now(),
+        lastActivity: Date.now()
+      };
+
+      rooms.set(roomCode, room);
       socket.join(roomCode);
+      userRooms.set(socket.id, roomCode);
 
       logProduction('info', `🏠 Room created: ${roomCode} by ${socket.id}`);
       callback({ success: true, room });
@@ -225,40 +295,44 @@ io.on('connection', (socket) => {
   });
 
   // Join room handler
-  socket.on('join-room', async (data, callback) => {
+  socket.on('join-room', (data, callback) => {
     try {
       const { roomCode } = data;
+
       if (!validateRoomCode(roomCode)) {
-        return callback({ success: false, error: 'Invalid room code format' });
+        callback({ success: false, error: 'Invalid room code format' });
+        return;
       }
 
-      const room = await roomManager.getRoom(roomCode);
+      const room = rooms.get(roomCode);
       if (!room) {
-        return callback({ success: false, error: 'Room not found' });
+        callback({ success: false, error: 'Room not found' });
+        return;
       }
 
-      // This now returns the updated room, saving a DB call
-      const updatedRoom = await roomManager.joinRoom(roomCode, socket.id);
-      
+      if (!room.participants.includes(socket.id)) {
+        room.participants.push(socket.id);
+      }
+
+      userRooms.set(socket.id, roomCode);
       socket.join(roomCode);
+      updateRoomActivity(roomCode);
 
-      if (!updatedRoom) {
-        // This case is unlikely but good to handle
-        return callback({ success: false, error: 'Failed to update room after join' });
-      }
-
+      // Notify other participants
       socket.to(roomCode).emit('user-joined', {
         userId: socket.id,
         roomCode,
-        participantCount: updatedRoom.participants.length
+        participantCount: room.participants.length
       });
 
-      if (updatedRoom.currentTrack) {
-        socket.emit('playback-sync', updatedRoom.currentTrack);
+      // Send current track to new participant
+      if (room.currentTrack) {
+        socket.emit('playback-sync', room.currentTrack);
+        logProduction('info', `📡 Sent current track to new participant: ${room.currentTrack.videoId}`);
       }
 
-      logProduction('info', `👥 User joined room: ${roomCode}`);
-      callback({ success: true, room: updatedRoom });
+      logProduction('info', `👥 User joined room: ${roomCode} (${room.participants.length} total)`);
+      callback({ success: true, room });
 
     } catch (error) {
       logProduction('error', 'Join room error:', error);
@@ -267,126 +341,107 @@ io.on('connection', (socket) => {
   });
 
   // Leave room handler
-  socket.on('leave-room', async () => {
-    const roomCode = await roomManager.getUserRoomCode(socket.id);
+  socket.on('leave-room', () => {
+    const roomCode = userRooms.get(socket.id);
     if (roomCode) {
+      leaveRoom(socket.id, roomCode);
       socket.leave(roomCode);
-      const { newHostId, remainingCount } = await roomManager.leaveRoom(roomCode, socket.id);
       logProduction('info', `👋 User left room: ${roomCode}`);
-
-      if (newHostId) {
-        io.to(roomCode).emit('host-changed', { newHostId, roomCode });
-        logProduction('info', `Host transferred in room ${roomCode} to ${newHostId}`);
-      }
-      io.to(roomCode).emit('user-left', { userId: socket.id, roomCode, participantCount: remainingCount });
     }
   });
 
-  // Generic Sync Handler
-  const handleSync = async (data: any, isPlaying: boolean, isSeeking: boolean = false) => {
-    try {
-      const roomCode = await roomManager.getUserRoomCode(socket.id);
-      if (!roomCode) return;
+  // Sync event handlers
+  socket.on('sync-play', (data) => {
+    handleSyncEvent(socket.id, data, true);
+  });
 
-      const room = await roomManager.getRoom(roomCode);
-      if (!room || room.hostId !== socket.id) return;
+  socket.on('sync-pause', (data) => {
+    handleSyncEvent(socket.id, data, false);
+  });
 
-      if (!data.videoId || typeof data.currentTime !== 'number') return;
-
-      const playbackState: PlaybackState = {
-        videoId: data.videoId,
-        currentTime: Math.max(0, data.currentTime),
-        isPlaying: isSeeking ? data.isPlaying : isPlaying,
-        timestamp: Date.now()
-      };
-
-      await roomManager.setRoomTrack(roomCode, playbackState);
-      io.to(roomCode).emit('playback-sync', playbackState);
-
-    } catch (error) {
-      logProduction('error', 'Sync event error:', error);
-    }
-  };
-
-  socket.on('sync-play', (data) => handleSync(data, true));
-  socket.on('sync-pause', (data) => handleSync(data, false));
-  socket.on('sync-seek', (data) => handleSync(data, data.isPlaying, true));
+  socket.on('sync-seek', (data) => {
+    handleSyncEvent(socket.id, data, data.isPlaying);
+  });
 
   // Video load sync handler
-  socket.on('sync-video-load', async (data: { videoId: string }) => {
-    const roomCode = await roomManager.getUserRoomCode(socket.id);
-    if (!roomCode) return;
+  socket.on('sync-video-load', (data: { videoId: string }) => {
+    const roomCode = userRooms.get(socket.id);
+    logProduction('info', `📹 Video load request from ${socket.id}, room: ${roomCode}, video: ${data.videoId}`);
+    
+    if (!roomCode) {
+      logProduction('warn', '❌ Video load sync: User not in room');
+      return;
+    }
 
-    const room = await roomManager.getRoom(roomCode);
-    if (!room || room.hostId !== socket.id) return;
+    const room = rooms.get(roomCode);
+    if (!room) {
+      logProduction('warn', '❌ Video load sync: Room not found');
+      return;
+    }
+    
+    if (room.hostId !== socket.id) {
+      logProduction('warn', '❌ Video load sync: Not authorized - not host');
+      return;
+    }
 
-    socket.to(roomCode).emit('video-load-sync', {
+    logProduction('info', `✅ Broadcasting video load: ${data.videoId} to ${room.participants.length - 1} participants`);
+
+    // Broadcast video load to participants
+    socket.to(roomCode).emit('video-load-sync', { 
       videoId: data.videoId,
       timestamp: Date.now()
     });
+    
+    logProduction('info', `📡 Video load broadcast completed for room ${roomCode}`);
   });
 
   // Disconnect handler
-  socket.on('disconnect', async (reason) => {
+  socket.on('disconnect', (reason) => {
     logProduction('info', `👤 User disconnected: ${socket.id} (${reason})`);
-    const roomCode = await roomManager.getUserRoomCode(socket.id);
+    
+    const roomCode = userRooms.get(socket.id);
     if (roomCode) {
-      const { newHostId, remainingCount } = await roomManager.leaveRoom(roomCode, socket.id);
-       if (newHostId) {
-        io.to(roomCode).emit('host-changed', { newHostId, roomCode });
-      }
-      io.to(roomCode).emit('user-left', { userId: socket.id, roomCode, participantCount: remainingCount });
+      leaveRoom(socket.id, roomCode);
     }
+    
+    userLastActivity.delete(socket.id);
   });
 });
 
 // API Routes
-app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
-  // A more robust health check that doesn't use the blocking KEYS command.
-  const redisStatus = redis.status;
-  const connectionsCount = await io.engine.clientsCount;
-
+app.get('/api/health', (_req: Request, res: Response): void => {
   res.json({ 
     status: 'ok',
     uptime: process.uptime(),
-    redisStatus: redisStatus, // 'ready', 'connecting', 'reconnecting', etc.
-    connections: connectionsCount,
+    rooms: rooms.size,
+    connections: io.engine.clientsCount,
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0'
   });
 });
 
-app.get('/api/stats', async (_req: Request, res: Response): Promise<void> => {
+app.get('/api/stats', (_req: Request, res: Response): void => {
   if (!isDevelopment) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
 
-  // Use SCAN instead of KEYS for non-blocking iteration
-  const stream = redis.scanStream({ match: 'room:*', type: 'hash' });
-  const roomKeys: string[] = [];
-  for await (const keys of stream) {
-    roomKeys.push(...keys);
-  }
-
-  const rooms = await Promise.all(roomKeys.map(k => roomManager.getRoom(k.replace('room:', ''))));
-
-  const roomStats = rooms.filter(Boolean).map(room => ({
-    roomCode: room!.roomCode,
-    participantCount: room!.participants.length,
-    hasCurrentTrack: !!room!.currentTrack,
-    lastActivity: new Date(room!.lastActivity).toISOString()
+  const roomStats = Array.from(rooms.values()).map(room => ({
+    roomCode: room.roomCode,
+    participantCount: room.participants.length,
+    hasCurrentTrack: !!room.currentTrack,
+    lastActivity: new Date(room.lastActivity).toISOString()
   }));
 
   res.json({
-    totalRooms: roomStats.length,
+    totalRooms: rooms.size,
     totalConnections: io.engine.clientsCount,
     rooms: roomStats
   });
 });
 
 // API route for room info
-app.get('/api/rooms/:roomCode', async (req: Request, res: Response): Promise<void> => {
+app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
   const { roomCode } = req.params;
   
   if (!validateRoomCode(roomCode)) {
@@ -394,7 +449,7 @@ app.get('/api/rooms/:roomCode', async (req: Request, res: Response): Promise<voi
     return;
   }
 
-  const room = await roomManager.getRoom(roomCode);
+  const room = rooms.get(roomCode);
   if (!room) {
     res.status(404).json({ error: 'Room not found' });
     return;
@@ -410,55 +465,84 @@ app.get('/api/rooms/:roomCode', async (req: Request, res: Response): Promise<voi
 });
 
 // Error handling middleware
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction): void => {
-  logProduction('error', 'Express error:', err.stack || err.message);
+app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
+  const origin = req.headers.origin;
+  
+  // Check if origin matches any allowed pattern (same logic as main CORS)
+  if (origin) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      // Handle regex patterns
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  logProduction('error', 'Express error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // 404 handler
-app.use('*', (_req: Request, res: Response): void => {
+app.use('*', (req: Request, res: Response): void => {
+  const origin = req.headers.origin;
+  
+  // Check if origin matches any allowed pattern (same logic as main CORS)
+  if (origin) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      }
+      // Handle regex patterns
+      return allowed.test(origin);
+    });
+    
+    if (isAllowed) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.status(404).json({ error: 'Not found' });
 });
-
 // Graceful shutdown
-const gracefulShutdown = (signal: string) => {
-  logProduction('info', `${signal} received, shutting down gracefully`);
-  
-  // 1. Stop accepting new connections
-  server.close(async () => {
-    logProduction('info', 'HTTP server closed.');
-    
-    // 2. Disconnect from Redis
-    await redis.quit();
-    logProduction('info', 'Redis connection closed.');
-    
-    // 3. Exit the process
+process.on('SIGTERM', () => {
+  logProduction('info', 'SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    logProduction('info', 'Process terminated');
     process.exit(0);
   });
+});
 
-  // Force shutdown after a timeout
-  setTimeout(() => {
-    logProduction('error', 'Could not close connections in time, forcefully shutting down');
-    process.exit(1);
-  }, 10000); // 10 seconds
-};
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-
-// --- FINAL SOLUTION: Parallel Startup for Fast Health Checks ---
-const startServer = () => {
-  console.log('[Checkpoint 4] Configuration complete. Starting server and Redis connection in parallel...');
-
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log('[Checkpoint 5] Server is listening!');
-    logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
-    logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    
-    const memUsage = process.memoryUsage();
-    console.log(`Memory usage - RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB, Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+process.on('SIGINT', () => {
+  logProduction('info', 'SIGINT received, shutting down gracefully');
+  server.close(() => {
+    logProduction('info', 'Process terminated');
+    process.exit(0);
   });
-};
+});
 
-startServer();
+// Start server
+server.listen(PORT, () => {
+  logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
+  logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logProduction('info', `📡 WebSocket server ready`);
+  logProduction('info', `🔗 Health check: http://localhost:${PORT}/api/health`);
+  
+  if (isDevelopment) {
+    logProduction('info', `📊 Stats endpoint: http://localhost:${PORT}/api/stats`);
+  }
+});
