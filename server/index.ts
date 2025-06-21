@@ -5,6 +5,10 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import compression from 'compression';
+import { logProduction, validateRoomCode } from './src/utils';
+import { PlaybackState } from './src/types';
+import * as roomManager from './src/roomManager';
+import { redis } from './src/redisClient';
 
 const app = express();
 const server = createServer(app);
@@ -148,190 +152,24 @@ const io = new Server(server, {
   maxHttpBufferSize: 1e6,
 });
 
-// Interfaces
-interface Room {
-  roomCode: string;
-  hostId: string;
-  participants: string[];
-  currentTrack?: PlaybackState | undefined;
-  createdAt: number;
-  lastActivity: number;
-}
-
-interface PlaybackState {
-  videoId: string;
-  currentTime: number;
-  isPlaying: boolean;
-  timestamp: number;
-}
-
-// Data storage
-const rooms = new Map<string, Room>();
-const userRooms = new Map<string, string>();
-const userLastActivity = new Map<string, number>();
-
-// Utility functions
-const logProduction = (level: 'info' | 'error' | 'warn', message: string, data?: any): void => {
-  if (isDevelopment || level !== 'info') {
-    const timestamp = new Date().toISOString();
-    console[level](`[${timestamp}] ${message}`, data || '');
-  }
-};
-
-const validateRoomCode = (roomCode: string): boolean => {
-  return typeof roomCode === 'string' && 
-         roomCode.length >= 4 && 
-         roomCode.length <= 10 && 
-         /^[A-Z0-9]+$/.test(roomCode);
-};
-
-const updateRoomActivity = (roomCode: string): void => {
-  const room = rooms.get(roomCode);
-  if (room) {
-    room.lastActivity = Date.now();
-  }
-};
-
-// Helper functions
-function handleSyncEvent(socketId: string, data: any, isPlaying: boolean): void {
-  try {
-    const roomCode = userRooms.get(socketId);
-    if (!roomCode) {
-      logProduction('warn', 'Sync event: User not in room');
-      return;
-    }
-
-    const room = rooms.get(roomCode);
-    if (!room) {
-      logProduction('warn', 'Sync event: Room not found');
-      return;
-    }
-    
-    if (room.hostId !== socketId) {
-      logProduction('warn', 'Sync event: Not authorized - not host');
-      return;
-    }
-
-    if (!data.videoId || typeof data.currentTime !== 'number') {
-      logProduction('warn', 'Invalid sync data received:', data);
-      return;
-    }
-
-    const now = Date.now();
-    const playbackState: PlaybackState = {
-      videoId: data.videoId,
-      currentTime: Math.max(0, data.currentTime),
-      isPlaying,
-      timestamp: now
-    };
-
-    room.currentTrack = playbackState;
-    updateRoomActivity(roomCode);
-
-    logProduction('info', `✅ Host sync: ${isPlaying ? 'PLAY' : 'PAUSE'} ${data.videoId} at ${data.currentTime.toFixed(1)}s to ${room.participants.length - 1} participants`);
-
-    // Broadcast immediately to participants
-    io.to(roomCode).emit('playback-sync', playbackState);
-    
-  } catch (error) {
-    logProduction('error', 'handleSyncEvent error:', error);
-  }
-}
-
-function leaveRoom(socketId: string, roomCode: string): void {
-  const room = rooms.get(roomCode);
-  if (!room) return;
-
-  room.participants = room.participants.filter(id => id !== socketId);
-  updateRoomActivity(roomCode);
-
-  io.to(roomCode).emit('user-left', {
-    userId: socketId,
-    roomCode,
-    participantCount: room.participants.length
-  });
-
-  if (room.hostId === socketId) {
-    if (room.participants.length > 0) {
-      room.hostId = room.participants[0];
-      io.to(roomCode).emit('host-changed', {
-        newHostId: room.hostId,
-        roomCode
-      });
-      logProduction('info', `Host transferred in room ${roomCode}`);
-    } else {
-      rooms.delete(roomCode);
-      logProduction('info', `Room deleted: ${roomCode}`);
-    }
-  }
-
-  userRooms.delete(socketId);
-}
-
-// Cleanup inactive rooms
-setInterval(() => {
-  const now = Date.now();
-  const inactivityTimeout = 2 * 60 * 60 * 1000; // 2 hours
-  const emptyRoomTimeout = 30 * 60 * 1000; // 30 minutes
-
-  for (const [roomCode, room] of rooms.entries()) {
-    const shouldDelete = 
-      (room.participants.length === 0 && now - room.lastActivity > emptyRoomTimeout) ||
-      (now - room.lastActivity > inactivityTimeout);
-
-    if (shouldDelete) {
-      rooms.delete(roomCode);
-      logProduction('info', `🧹 Cleaned up room: ${roomCode}`);
-    }
-  }
-}, 10 * 60 * 1000); // Check every 10 minutes
-
 // Socket connection handling
 io.on('connection', (socket) => {
-  userLastActivity.set(socket.id, Date.now());
   logProduction('info', `👤 User connected: ${socket.id}`);
 
-  // Activity tracking middleware
-  socket.use((_, next) => {
-    userLastActivity.set(socket.id, Date.now());
-    next();
-  });
-
   // Create room handler
-  socket.on('create-room', (data, callback) => {
+  socket.on('create-room', async (data, callback) => {
     try {
       const { roomCode } = data;
-
       if (!validateRoomCode(roomCode)) {
-        callback({ success: false, error: 'Invalid room code format' });
-        return;
+        return callback({ success: false, error: 'Invalid room code format' });
       }
 
-      if (rooms.has(roomCode)) {
-        const existingRoom = rooms.get(roomCode)!;
-        
-        if (existingRoom.hostId === socket.id || existingRoom.participants.includes(socket.id)) {
-          updateRoomActivity(roomCode);
-          callback({ success: true, room: existingRoom });
-          return;
-        }
-        
-        callback({ success: false, error: 'Room already exists' });
-        return;
+      if (await roomManager.getRoom(roomCode)) {
+        return callback({ success: false, error: 'Room already exists' });
       }
 
-      const room: Room = {
-        roomCode,
-        hostId: socket.id,
-        participants: [socket.id],
-        currentTrack: undefined,
-        createdAt: Date.now(),
-        lastActivity: Date.now()
-      };
-
-      rooms.set(roomCode, room);
+      const room = await roomManager.createRoom(roomCode, socket.id);
       socket.join(roomCode);
-      userRooms.set(socket.id, roomCode);
 
       logProduction('info', `🏠 Room created: ${roomCode} by ${socket.id}`);
       callback({ success: true, room });
@@ -343,44 +181,37 @@ io.on('connection', (socket) => {
   });
 
   // Join room handler
-  socket.on('join-room', (data, callback) => {
+  socket.on('join-room', async (data, callback) => {
     try {
       const { roomCode } = data;
-
       if (!validateRoomCode(roomCode)) {
-        callback({ success: false, error: 'Invalid room code format' });
-        return;
+        return callback({ success: false, error: 'Invalid room code format' });
       }
 
-      const room = rooms.get(roomCode);
+      const room = await roomManager.getRoom(roomCode);
       if (!room) {
-        callback({ success: false, error: 'Room not found' });
-        return;
+        return callback({ success: false, error: 'Room not found' });
       }
 
       if (!room.participants.includes(socket.id)) {
-        room.participants.push(socket.id);
+        await roomManager.joinRoom(roomCode, socket.id);
       }
-
-      userRooms.set(socket.id, roomCode);
+      
       socket.join(roomCode);
-      updateRoomActivity(roomCode);
+      const updatedRoom = await roomManager.getRoom(roomCode); // Get updated state
 
-      // Notify other participants
       socket.to(roomCode).emit('user-joined', {
         userId: socket.id,
         roomCode,
-        participantCount: room.participants.length
+        participantCount: updatedRoom?.participants.length || 1
       });
 
-      // Send current track to new participant
-      if (room.currentTrack) {
-        socket.emit('playback-sync', room.currentTrack);
-        logProduction('info', `📡 Sent current track to new participant: ${room.currentTrack.videoId}`);
+      if (updatedRoom?.currentTrack) {
+        socket.emit('playback-sync', updatedRoom.currentTrack);
       }
 
-      logProduction('info', `👥 User joined room: ${roomCode} (${room.participants.length} total)`);
-      callback({ success: true, room });
+      logProduction('info', `👥 User joined room: ${roomCode}`);
+      callback({ success: true, room: updatedRoom });
 
     } catch (error) {
       logProduction('error', 'Join room error:', error);
@@ -389,107 +220,126 @@ io.on('connection', (socket) => {
   });
 
   // Leave room handler
-  socket.on('leave-room', () => {
-    const roomCode = userRooms.get(socket.id);
+  socket.on('leave-room', async () => {
+    const roomCode = await roomManager.getUserRoomCode(socket.id);
     if (roomCode) {
-      leaveRoom(socket.id, roomCode);
       socket.leave(roomCode);
+      const { newHostId, remainingCount } = await roomManager.leaveRoom(roomCode, socket.id);
       logProduction('info', `👋 User left room: ${roomCode}`);
+
+      if (newHostId) {
+        io.to(roomCode).emit('host-changed', { newHostId, roomCode });
+        logProduction('info', `Host transferred in room ${roomCode} to ${newHostId}`);
+      }
+      io.to(roomCode).emit('user-left', { userId: socket.id, roomCode, participantCount: remainingCount });
     }
   });
 
-  // Sync event handlers
-  socket.on('sync-play', (data) => {
-    handleSyncEvent(socket.id, data, true);
-  });
+  // Generic Sync Handler
+  const handleSync = async (data: any, isPlaying: boolean, isSeeking: boolean = false) => {
+    try {
+      const roomCode = await roomManager.getUserRoomCode(socket.id);
+      if (!roomCode) return;
 
-  socket.on('sync-pause', (data) => {
-    handleSyncEvent(socket.id, data, false);
-  });
+      const room = await roomManager.getRoom(roomCode);
+      if (!room || room.hostId !== socket.id) return;
 
-  socket.on('sync-seek', (data) => {
-    handleSyncEvent(socket.id, data, data.isPlaying);
-  });
+      if (!data.videoId || typeof data.currentTime !== 'number') return;
+
+      const playbackState: PlaybackState = {
+        videoId: data.videoId,
+        currentTime: Math.max(0, data.currentTime),
+        isPlaying: isSeeking ? data.isPlaying : isPlaying,
+        timestamp: Date.now()
+      };
+
+      await roomManager.setRoomTrack(roomCode, playbackState);
+      io.to(roomCode).emit('playback-sync', playbackState);
+
+    } catch (error) {
+      logProduction('error', 'Sync event error:', error);
+    }
+  };
+
+  socket.on('sync-play', (data) => handleSync(data, true));
+  socket.on('sync-pause', (data) => handleSync(data, false));
+  socket.on('sync-seek', (data) => handleSync(data, data.isPlaying, true));
 
   // Video load sync handler
-  socket.on('sync-video-load', (data: { videoId: string }) => {
-    const roomCode = userRooms.get(socket.id);
-    logProduction('info', `📹 Video load request from ${socket.id}, room: ${roomCode}, video: ${data.videoId}`);
-    
-    if (!roomCode) {
-      logProduction('warn', '❌ Video load sync: User not in room');
-      return;
-    }
+  socket.on('sync-video-load', async (data: { videoId: string }) => {
+    const roomCode = await roomManager.getUserRoomCode(socket.id);
+    if (!roomCode) return;
 
-    const room = rooms.get(roomCode);
-    if (!room) {
-      logProduction('warn', '❌ Video load sync: Room not found');
-      return;
-    }
-    
-    if (room.hostId !== socket.id) {
-      logProduction('warn', '❌ Video load sync: Not authorized - not host');
-      return;
-    }
+    const room = await roomManager.getRoom(roomCode);
+    if (!room || room.hostId !== socket.id) return;
 
-    logProduction('info', `✅ Broadcasting video load: ${data.videoId} to ${room.participants.length - 1} participants`);
-
-    // Broadcast video load to participants
-    socket.to(roomCode).emit('video-load-sync', { 
+    socket.to(roomCode).emit('video-load-sync', {
       videoId: data.videoId,
       timestamp: Date.now()
     });
-    
-    logProduction('info', `📡 Video load broadcast completed for room ${roomCode}`);
   });
 
   // Disconnect handler
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', async (reason) => {
     logProduction('info', `👤 User disconnected: ${socket.id} (${reason})`);
-    
-    const roomCode = userRooms.get(socket.id);
+    const roomCode = await roomManager.getUserRoomCode(socket.id);
     if (roomCode) {
-      leaveRoom(socket.id, roomCode);
+      const { newHostId, remainingCount } = await roomManager.leaveRoom(roomCode, socket.id);
+       if (newHostId) {
+        io.to(roomCode).emit('host-changed', { newHostId, roomCode });
+      }
+      io.to(roomCode).emit('user-left', { userId: socket.id, roomCode, participantCount: remainingCount });
     }
-    
-    userLastActivity.delete(socket.id);
   });
 });
 
 // API Routes
-app.get('/api/health', (_req: Request, res: Response): void => {
+app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
+  // A more robust health check that doesn't use the blocking KEYS command.
+  const redisStatus = redis.status;
+  const connectionsCount = await io.engine.clientsCount;
+
   res.json({ 
     status: 'ok',
     uptime: process.uptime(),
-    rooms: rooms.size,
-    connections: io.engine.clientsCount,
+    redisStatus: redisStatus, // 'ready', 'connecting', 'reconnecting', etc.
+    connections: connectionsCount,
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0'
   });
 });
 
-app.get('/api/stats', (_req: Request, res: Response): void => {
+app.get('/api/stats', async (_req: Request, res: Response): Promise<void> => {
   if (!isDevelopment) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
 
-  const roomStats = Array.from(rooms.values()).map(room => ({
-    roomCode: room.roomCode,
-    participantCount: room.participants.length,
-    hasCurrentTrack: !!room.currentTrack,
-    lastActivity: new Date(room.lastActivity).toISOString()
+  // Use SCAN instead of KEYS for non-blocking iteration
+  const stream = redis.scanStream({ match: 'room:*', type: 'hash' });
+  const roomKeys: string[] = [];
+  for await (const keys of stream) {
+    roomKeys.push(...keys);
+  }
+
+  const rooms = await Promise.all(roomKeys.map(k => roomManager.getRoom(k.replace('room:', ''))));
+
+  const roomStats = rooms.filter(Boolean).map(room => ({
+    roomCode: room!.roomCode,
+    participantCount: room!.participants.length,
+    hasCurrentTrack: !!room!.currentTrack,
+    lastActivity: new Date(room!.lastActivity).toISOString()
   }));
 
   res.json({
-    totalRooms: rooms.size,
+    totalRooms: roomStats.length,
     totalConnections: io.engine.clientsCount,
     rooms: roomStats
   });
 });
 
 // API route for room info
-app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
+app.get('/api/rooms/:roomCode', async (req: Request, res: Response): Promise<void> => {
   const { roomCode } = req.params;
   
   if (!validateRoomCode(roomCode)) {
@@ -497,7 +347,7 @@ app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
     return;
   }
 
-  const room = rooms.get(roomCode);
+  const room = await roomManager.getRoom(roomCode);
   if (!room) {
     res.status(404).json({ error: 'Room not found' });
     return;
