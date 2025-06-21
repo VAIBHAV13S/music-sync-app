@@ -43,8 +43,10 @@ console.log('[Checkpoint 3] All modules imported. Redis client is initializing..
 const app = express();
 const server = createServer(app);
 
-// REMOVE THE HEALTH CHECK ROUTE ENTIRELY
-// app.get('/', (req, res) => { ... });  // <-- Comment this out or delete
+// Add the root health check back
+app.get('/', (_req, res) => {
+  res.status(200).send('OK');
+});
 
 // Add a more detailed health check endpoint
 app.get('/health', (_req, res) => {
