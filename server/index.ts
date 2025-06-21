@@ -83,11 +83,59 @@ const limiter = rateLimit({
   // Skip rate limiting for OPTIONS requests (preflight)
   skip: (req) => req.method === 'OPTIONS'
 });
+app.use(limiter);
 
-// Apply rate limiting only to API routes
-app.use('/api', limiter);
+app.get('/api/search', async (req: Request, res: Response) => {
+  const { q } = req.query;
+  const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
-// Socket.IO server with proper CORS
+  if (!YOUTUBE_API_KEY) {
+    console.error('YouTube API key is not configured on the server.');
+    return res.status(500).json({ error: 'Server configuration error.' });
+  }
+
+  if (!q || typeof q !== 'string') {
+    return res.status(400).json({ error: 'Search query "q" is required.' });
+  }
+
+  try {
+    // Step 1: Search for video IDs
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
+    const searchResponse = await fetch(searchUrl);
+    if (!searchResponse.ok) throw new Error('Failed to fetch from YouTube API (search)');
+    const searchData = await searchResponse.json() as any;
+
+    const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+    if (!videoIds) {
+      res.json([]);
+      return;
+    }
+
+    // Step 2: Get video details (including duration) for the found IDs
+    const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${YOUTUBE_API_KEY}`;
+    const detailsResponse = await fetch(detailsUrl);
+    if (!detailsResponse.ok) throw new Error('Failed to fetch from YouTube API (details)');
+    const detailsData = await detailsResponse.json() as any;
+
+    // Step 3: Format the response to match what the client expects
+    const results = detailsData.items.map((item: any) => ({
+      id: item.id,
+      title: item.snippet.title,
+      artist: item.snippet.channelTitle,
+      thumbnail: item.snippet.thumbnails.default.url,
+      duration: item.contentDetails.duration, // Send ISO duration, client will format it
+      description: item.snippet.description,
+    }));
+
+    return res.json(results);
+  } catch (error) {
+    console.error('YouTube search failed:', error);
+    return res.status(500).json({ error: 'Failed to perform YouTube search.' });
+  }
+});
+
+
+// Socket.IO server setup
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins, // This should now include your actual URL

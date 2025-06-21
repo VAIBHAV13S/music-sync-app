@@ -13,105 +13,52 @@ interface YouTubeSearchProps {
   onSelectTrack: (videoId: string) => void;
 }
 
-// YouTube API service
+// YouTube API service - NOW CALLS OUR BACKEND
 class YouTubeAPIService {
-  private static get API_KEY() {
-    return import.meta.env.VITE_YOUTUBE_API_KEY || '';
-  }
-  
   private static get BASE_URL() {
-    return 'https://www.googleapis.com/youtube/v3';
+    return import.meta.env.VITE_SOCKET_SERVER_URL || '';
   }
 
   static async searchVideos(query: string, maxResults: number = 10): Promise<SearchResult[]> {
-    console.log('API Key available:', !!this.API_KEY);
-    
-    if (!this.API_KEY) {
-      console.error('YouTube API key not found!');
-      return [];
+    if (!this.BASE_URL) {
+      throw new Error("VITE_SOCKET_SERVER_URL is not defined in the environment variables.");
     }
 
     try {
-      console.log('Searching for:', query);
+      const response = await fetch(`${this.BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
       
-      // Search for videos
-      const searchUrl = `${this.BASE_URL}/search?` +
-        `part=snippet&` +
-        `q=${encodeURIComponent(query + ' music')}&` +
-        `type=video&` +
-        `videoCategoryId=10&` + // Music category
-        `maxResults=${maxResults}&` +
-        `key=${this.API_KEY}`;
-        
-      console.log('Search URL:', searchUrl);
-
-      const searchResponse = await fetch(searchUrl);
-
-      if (!searchResponse.ok) {
-        const errorText = await searchResponse.text();
-        console.error('Search failed:', searchResponse.status, errorText);
-        throw new Error(`Search failed: ${searchResponse.status}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch search results from server.');
       }
 
-      const searchData = await searchResponse.json();
-      console.log('Search data:', searchData);
-      
-      if (!searchData.items || searchData.items.length === 0) {
-        console.log('No items found in search');
-        return [];
-      }
+      const data = await response.json();
 
-      const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-      console.log('Video IDs:', videoIds);
-
-      // Get video details including duration
-      const detailsResponse = await fetch(
-        `${this.BASE_URL}/videos?` +
-        `part=contentDetails,snippet&` +
-        `id=${videoIds}&` +
-        `key=${this.API_KEY}`
-      );
-
-      if (!detailsResponse.ok) {
-        throw new Error(`Details failed: ${detailsResponse.status}`);
-      }
-
-      const detailsData = await detailsResponse.json();
-      console.log('Details data:', detailsData);
-
-      // Process and format results
-      const results = detailsData.items.map((item: any) => ({
-        id: item.id,
-        title: item.snippet.title,
-        artist: item.snippet.channelTitle,
-        thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-        duration: this.formatDuration(item.contentDetails.duration),
-        description: item.snippet.description
+      // The backend now returns the fully formatted SearchResult[], so we just need to format the duration
+      return data.map((item: any) => ({
+        ...item,
+        duration: this.formatDuration(item.duration),
       }));
-      
-      console.log('Processed results:', results);
-      return results;
 
     } catch (error) {
-      console.error('YouTube API Error:', error);
-      return [];
+      console.error('Error searching videos:', error);
+      throw error; // Re-throw to be caught by the component
     }
   }
 
   private static formatDuration(duration: string): string {
     // Convert ISO 8601 duration (PT4M20S) to readable format (4:20)
     const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (!match) return '0:00';
+    if (!match) return "0:00";
 
     const hours = parseInt(match[1] || '0');
     const minutes = parseInt(match[2] || '0');
     const seconds = parseInt(match[3] || '0');
 
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    } else {
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 }
 
@@ -179,12 +126,6 @@ function YouTubeSearch({ onSelectTrack }: YouTubeSearchProps) {
           </button>
         </div>
         
-        {/* Debug Info */}
-        <div className="mt-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded-lg">
-          <p className="text-blue-300 text-sm">
-            🔧 Debug: API Key {import.meta.env.VITE_YOUTUBE_API_KEY ? '✅ Found' : '❌ Missing'}
-          </p>
-        </div>
       </div>
 
       {/* Loading State */}
