@@ -47,7 +47,23 @@ const server = createServer(app);
 // This route is now defined BEFORE any middleware (CORS, Helmet, etc.)
 // This guarantees it will always be reachable by the deployment platform.
 app.get('/', (_req, res) => {
+  // Set explicit headers for Railway
+  res.set({
+    'Content-Type': 'text/plain',
+    'Cache-Control': 'no-cache',
+    'Connection': 'close'
+  });
   res.status(200).send('OK');
+});
+
+// Add a more detailed health check endpoint
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: '1.0.0'
+  });
 });
 
 // Environment configuration
