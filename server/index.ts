@@ -40,23 +40,10 @@ import { redis } from './src/redisClient';
 
 console.log('[Checkpoint 3] All modules imported. Redis client is initializing...');
 
-// SET UP REDIS LISTENERS IMMEDIATELY AFTER IMPORT
-redis.on('ready', () => {
-  logProduction('info', '✅ Redis connection established. Server is fully ready.');
-});
-
-redis.on('connect', () => {
-  console.log('🔗 Redis client connected (but not ready yet)');
-});
-
-redis.on('error', (error) => {
-  logProduction('error', '❌ Redis connection error:', error);
-});
-
 const app = express();
 const server = createServer(app);
 
-// Add the root health check back
+// Add the root health check
 app.get('/', (_req, res) => {
   res.status(200).send('OK');
 });
