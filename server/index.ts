@@ -453,10 +453,29 @@ const startServer = () => {
       logProduction('info', '✅ Redis connection established. Server is fully ready.');
     });
 
+    redis.on('connect', () => {
+      console.log('🔗 Redis client connected (but not ready yet)');
+    });
+
     redis.on('error', (error) => {
-      // Log the error but don't exit. The Redis client might reconnect.
       logProduction('error', '❌ Redis connection error:', error);
     });
+
+    redis.on('close', () => {
+      console.log('🔌 Redis connection closed');
+    });
+
+    redis.on('reconnecting', () => {
+      console.log('🔄 Redis reconnecting...');
+    });
+
+    // Add a timeout to detect Redis connection issues
+    setTimeout(() => {
+      if (redis.status !== 'ready') {
+        console.log(`⚠️ Redis status after 10 seconds: ${redis.status}`);
+        console.log('⚠️ Redis might be having connection issues');
+      }
+    }, 10000);
   });
 
   server.on('error', (error) => {
