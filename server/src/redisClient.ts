@@ -10,7 +10,6 @@ if (!redisUrl) {
 
 export const redis = new Redis(redisUrl, {
   maxRetriesPerRequest: null, // Recommended for cloud environments
-  enableReadyCheck: false,
 });
 
 redis.on('connect', () => {
