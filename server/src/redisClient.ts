@@ -8,14 +8,14 @@ if (!redisUrl) {
   process.exit(1);
 }
 
+// Optimized configuration for faster startup
 export const redis = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,      // Keep this one, remove the duplicate
-  connectTimeout: 10000,           // 10 second connection timeout
-  commandTimeout: 5000,            // 5 second command timeout
-  enableOfflineQueue: false,       // Don't queue commands when offline
-  lazyConnect: false,              // Connect immediately
-  keepAlive: 30000,                // Keep connection alive
-  // Remove retryDelayOnFailover - it's not a valid option
+  maxRetriesPerRequest: null,
+  connectTimeout: 5000,        // Reduce to 5 seconds
+  commandTimeout: 3000,        // Reduce to 3 seconds  
+  enableOfflineQueue: false,
+  lazyConnect: false,
+  // Remove keepAlive to speed up initial connection
 });
 
 redis.on('connect', () => {
@@ -28,13 +28,8 @@ redis.on('ready', () => {
 
 redis.on('error', (err: Error) => {
   logProduction('error', '❌ Redis connection error:', err.message);
-  logProduction('error', 'Redis error details:', err);
 });
 
 redis.on('close', () => {
   logProduction('warn', '🔌 Redis connection closed');
-});
-
-redis.on('reconnecting', (time: number) => {
-  logProduction('info', `🔄 Redis reconnecting in ${time}ms`);
 });
