@@ -86,11 +86,13 @@ class RealSocketService {
       this.log('info', 'WebSocket connected successfully');
       this._connected = true;
       this.reconnectAttempts = 0;
+      this.emitToListeners('connect', undefined); // Forward event
     });
 
     this.socket.on('disconnect', (reason: string) => {
       this.log('warn', `WebSocket disconnected: ${reason}`);
       this._connected = false;
+      this.emitToListeners('disconnect', reason); // Forward event
       
       // Don't log manual disconnects as errors
       if (reason !== 'io client disconnect') {
@@ -117,6 +119,7 @@ class RealSocketService {
     this.socket.on('connect_error', (error: Error) => {
       this.log('error', 'Connection error', error.message);
       this._connected = false;
+      this.emitToListeners('connect_error', error); // Forward event
     });
 
     // Set up forwarding for tracked events
@@ -380,6 +383,20 @@ class RealSocketService {
   onVideoLoadSync(callback: EventCallback<{ videoId: string }>): () => void {
     return this.addListener('video-load-sync', callback);
   }
+
+  // Add these public methods for connection events
+  onConnect(callback: EventCallback<void>): () => void {
+    return this.addListener('connect', callback);
+  }
+
+  onDisconnect(callback: EventCallback<string>): () => void {
+    return this.addListener('disconnect', callback);
+  }
+
+  onConnectError(callback: EventCallback<Error>): () => void {
+    return this.addListener('connect_error', callback);
+  }
+
   // Event subscription methods with cleanup
   onPlaybackSync(callback: EventCallback<PlaybackState>): () => void {
     console.log('🎯 Setting up playback sync listener');

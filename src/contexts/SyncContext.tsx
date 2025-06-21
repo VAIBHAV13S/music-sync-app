@@ -82,22 +82,40 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    const cleanupFunctions: (() => void)[] = [];
-    cleanupFunctions.push(realSocketService.onPlaybackSync(handlePlaybackSync));
-    cleanupFunctions.push(realSocketService.onUserJoined(handleUserJoined));
-    cleanupFunctions.push(realSocketService.onUserLeft(handleUserLeft));
-    cleanupFunctions.push(realSocketService.onHostChanged(handleHostChanged));
-    cleanupFunctions.push(realSocketService.onVideoLoadSync(handleVideoLoad));
+    const onConnect = () => {
+      console.log('Socket connected!');
+      setIsConnected(true);
+      setIsConnecting(false);
+      setConnectionState('connected');
+    };
+    const onDisconnect = () => {
+      console.log('Socket disconnected!');
+      setIsConnected(false);
+      setIsConnecting(false);
+      setConnectionState('disconnected');
+    };
+    const onConnectError = () => {
+      console.log('Socket connection error!');
+      setIsConnected(false);
+      setIsConnecting(false);
+      setConnectionState('error');
+    };
 
-    const interval = setInterval(() => {
-        setIsConnected(realSocketService.isConnected);
-        setIsConnecting(realSocketService.isConnecting);
-        setConnectionState(realSocketService.connectionState);
-    }, 500);
+    // Listen to all events via the service's safe methods
+    const cleanupFunctions: (() => void)[] = [
+      realSocketService.onConnect(onConnect),
+      realSocketService.onDisconnect(onDisconnect),
+      realSocketService.onConnectError(onConnectError),
+      realSocketService.onPlaybackSync(handlePlaybackSync),
+      realSocketService.onUserJoined(handleUserJoined),
+      realSocketService.onUserLeft(handleUserLeft),
+      realSocketService.onHostChanged(handleHostChanged),
+      realSocketService.onVideoLoadSync(handleVideoLoad),
+    ];
 
     return () => {
+      // Clean up all listeners with one loop
       cleanupFunctions.forEach(cleanup => cleanup());
-      clearInterval(interval);
     };
   }, [handlePlaybackSync, handleUserJoined, handleUserLeft, handleHostChanged, handleVideoLoad]);
 

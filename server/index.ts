@@ -371,59 +371,16 @@ app.get('/api/rooms/:roomCode', async (req: Request, res: Response): Promise<voi
 });
 
 // Error handling middleware
-app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
-  const origin = req.headers.origin;
-  
-  // Check if origin matches any allowed pattern (same logic as main CORS)
-  if (origin) {
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        return allowed === origin;
-      }
-      // Handle regex patterns
-      return allowed.test(origin);
-    });
-    
-    if (isAllowed) {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Credentials', 'true');
-    } else {
-      res.header('Access-Control-Allow-Origin', '*');
-    }
-  } else {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  logProduction('error', 'Express error:', err.message);
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction): void => {
+  logProduction('error', 'Express error:', err.stack || err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // 404 handler
-app.use('*', (req: Request, res: Response): void => {
-  const origin = req.headers.origin;
-  
-  // Check if origin matches any allowed pattern (same logic as main CORS)
-  if (origin) {
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        return allowed === origin;
-      }
-      // Handle regex patterns
-      return allowed.test(origin);
-    });
-    
-    if (isAllowed) {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Credentials', 'true');
-    } else {
-      res.header('Access-Control-Allow-Origin', '*');
-    }
-  } else {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
+app.use('*', (_req: Request, res: Response): void => {
   res.status(404).json({ error: 'Not found' });
 });
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logProduction('info', 'SIGTERM received, shutting down gracefully');
