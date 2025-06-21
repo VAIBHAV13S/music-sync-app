@@ -40,6 +40,19 @@ import { redis } from './src/redisClient';
 
 console.log('[Checkpoint 3] All modules imported. Redis client is initializing...');
 
+// SET UP REDIS LISTENERS IMMEDIATELY AFTER IMPORT
+redis.on('ready', () => {
+  logProduction('info', '✅ Redis connection established. Server is fully ready.');
+});
+
+redis.on('connect', () => {
+  console.log('🔗 Redis client connected (but not ready yet)');
+});
+
+redis.on('error', (error) => {
+  logProduction('error', '❌ Redis connection error:', error);
+});
+
 const app = express();
 const server = createServer(app);
 
@@ -438,40 +451,18 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 const startServer = () => {
   console.log('[Checkpoint 4] Configuration complete. Starting server and Redis connection in parallel...');
 
-  // Start the HTTP server immediately to pass the health check.
   server.listen(PORT, '0.0.0.0', () => {
     console.log('[Checkpoint 5] Server is listening!');
     logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
     logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     
-    // Log memory usage
     const memUsage = process.memoryUsage();
     console.log(`Memory usage - RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB, Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
     
-    // Now that the server is listening, handle Redis events.
-    redis.on('ready', () => {
-      logProduction('info', '✅ Redis connection established. Server is fully ready.');
-    });
-
-    redis.on('connect', () => {
-      console.log('🔗 Redis client connected (but not ready yet)');
-    });
-
-    redis.on('error', (error) => {
-      logProduction('error', '❌ Redis connection error:', error);
-    });
-
-    redis.on('close', () => {
-      console.log('🔌 Redis connection closed');
-    });
-
-    redis.on('reconnecting', () => {
-      console.log('🔄 Redis reconnecting...');
-    });
-
-    // Add a timeout to detect Redis connection issues
+    // REMOVE THE REDIS LISTENERS FROM HERE - THEY'RE NOW AT THE TOP
+    
     setTimeout(async () => {
-      console.log(`⚠️ Redis status after 5 seconds: ${redis.status}`); // Changed from 10 to 5
+      console.log(`⚠️ Redis status after 5 seconds: ${redis.status}`);
       
       if (redis.status !== 'ready') {
         console.log('⚠️ Redis might be having connection issues');
@@ -483,12 +474,7 @@ const startServer = () => {
           console.log('❌ Redis ping failed:', error);
         }
       }
-    }, 5000); // Changed from 10000 to 5000
-  });
-
-  server.on('error', (error) => {
-    logProduction('error', '❌ HTTP server error:', error);
-    process.exit(1);
+    }, 5000);
   });
 };
 
