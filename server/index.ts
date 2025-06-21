@@ -36,7 +36,7 @@ app.set('trust proxy', 1);
 const allowedOrigins = isDevelopment 
   ? ['http://localhost:5173', 'http://127.0.0.1:5173']
   : [
-      'https://music-sync-app-ten.vercel.app/', // <-- Add your MAIN production frontend URL here
+      'https://music-sync-app-ten.vercel.app', // <-- FIX: Removed trailing slash
       /^https:\/\/music-sync-.*\.vercel\.app$/, // Regex for Vercel preview deployments
     ];
 
@@ -44,15 +44,20 @@ const allowedOrigins = isDevelopment
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      logProduction('info', 'CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
     
     const isAllowed = allowedOrigins.some(allowedOrigin => 
       typeof allowedOrigin === 'string' ? allowedOrigin === origin : allowedOrigin.test(origin)
     );
 
     if (isAllowed) {
+      logProduction('info', `CORS: Allowed origin: ${origin}`);
       callback(null, true);
     } else {
+      logProduction('warn', `CORS: Blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
