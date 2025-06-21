@@ -398,32 +398,28 @@ process.on('SIGINT', () => {
   });
 });
 
-// --- FINAL SOLUTION: Synchronous Server Start ---
-const startServer = async () => {
-  try {
-    console.log('[Checkpoint 4] Configuration complete. Verifying Redis connection...');
-    
-    // Wait for Redis to be ready. This will throw an error if it fails.
-    await redis.ping();
-    logProduction('info', '✅ Redis connection verified.');
+// --- FINAL SOLUTION: Event-Driven Server Start ---
+const startServer = () => {
+  console.log('[Checkpoint 4] Configuration complete. Waiting for Redis connection...');
 
-    // Now, start the server only after Redis is confirmed to be connected.
+  // This is the canonical way to handle ioredis startup.
+  // We wait for the 'ready' event before starting the HTTP server.
+  redis.on('ready', () => {
+    logProduction('info', '✅ Redis connection established.');
+
+    // Now that Redis is ready, start the server.
     server.listen(PORT, '0.0.0.0', () => {
       console.log('[Checkpoint 5] Server is listening!');
       logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
       logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-      logProduction('info', `📡 WebSocket server ready`);
-      logProduction('info', `🔗 Health check: http://localhost:${PORT}/api/health`);
-      
-      if (isDevelopment) {
-        logProduction('info', `📊 Stats endpoint: http://localhost:${PORT}/api/stats`);
-      }
     });
+  });
 
-  } catch (error) {
-    logProduction('error', '❌ Server failed to start:', error);
+  // If the Redis client cannot connect, log the error and exit.
+  redis.on('error', (error) => {
+    logProduction('error', '❌ Redis connection error:', error);
     process.exit(1);
-  }
+  });
 };
 
 startServer();
