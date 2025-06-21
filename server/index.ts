@@ -75,7 +75,7 @@ app.get('/health', (_req, res) => {
 
 // Environment configuration
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const PORT = parseInt(process.env.PORT || '3001', 10);
+const PORT = parseInt(process.env.PORT || '8080', 10); // Change from 3001 to 8080
 
 // Trust proxy - IMPORTANT: Add this before rate limiting
 app.set('trust proxy', 1);
