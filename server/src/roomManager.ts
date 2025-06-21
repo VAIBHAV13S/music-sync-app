@@ -49,12 +49,14 @@ export async function createRoom(roomCode: string, hostId: string): Promise<Room
   return { ...newRoom, participants: [hostId] };
 }
 
-export async function joinRoom(roomCode: string, socketId: string): Promise<void> {
+export async function joinRoom(roomCode: string, socketId: string): Promise<Room | null> {
   const pipeline = redis.pipeline();
   pipeline.sadd(participantsKey(roomCode), socketId);
   pipeline.set(userKey(socketId), roomCode, 'EX', ROOM_EXPIRATION_SECONDS);
   await pipeline.exec();
   await updateRoomActivity(roomCode);
+  // Return the updated room data
+  return getRoom(roomCode);
 }
 
 export async function leaveRoom(roomCode: string, socketId: string): Promise<{ remainingCount: number; newHostId?: string }> {

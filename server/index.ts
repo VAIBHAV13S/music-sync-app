@@ -72,7 +72,13 @@ app.use(helmet());
 app.use(compression());
 app.use(express.json());
 
-// Rate limiting with proper proxy support - MOVED AFTER CORS AND EXPRESS.JSON
+// Root health check route for deployment platforms like Railway
+// IMPORTANT: This must come BEFORE the rate limiter.
+app.get('/', (_req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Music Sync Server is running.' });
+});
+
+// Rate limiting with proper proxy support
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 100,
@@ -147,6 +153,13 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   logProduction('info', `👤 User connected: ${socket.id}`);
 
+  // Add this ping handler
+  socket.on('ping', (callback) => {
+    if (typeof callback === 'function') {
+      callback({ status: 'ok' });
+    }
+  });
+
   // Create room handler
   socket.on('create-room', async (data, callback) => {
     try {
@@ -184,20 +197,23 @@ io.on('connection', (socket) => {
         return callback({ success: false, error: 'Room not found' });
       }
 
-      if (!room.participants.includes(socket.id)) {
-        await roomManager.joinRoom(roomCode, socket.id);
-      }
+      // This now returns the updated room, saving a DB call
+      const updatedRoom = await roomManager.joinRoom(roomCode, socket.id);
       
       socket.join(roomCode);
-      const updatedRoom = await roomManager.getRoom(roomCode); // Get updated state
+
+      if (!updatedRoom) {
+        // This case is unlikely but good to handle
+        return callback({ success: false, error: 'Failed to update room after join' });
+      }
 
       socket.to(roomCode).emit('user-joined', {
         userId: socket.id,
         roomCode,
-        participantCount: updatedRoom?.participants.length || 1
+        participantCount: updatedRoom.participants.length
       });
 
-      if (updatedRoom?.currentTrack) {
+      if (updatedRoom.currentTrack) {
         socket.emit('playback-sync', updatedRoom.currentTrack);
       }
 
