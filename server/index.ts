@@ -470,10 +470,19 @@ const startServer = () => {
     });
 
     // Add a timeout to detect Redis connection issues
-    setTimeout(() => {
+    setTimeout(async () => {
+      console.log(`⚠️ Redis status after 10 seconds: ${redis.status}`);
+      
       if (redis.status !== 'ready') {
-        console.log(`⚠️ Redis status after 10 seconds: ${redis.status}`);
         console.log('⚠️ Redis might be having connection issues');
+        
+        // Try a simple ping to test the connection
+        try {
+          const result = await redis.ping();
+          console.log(`✅ Redis ping successful: ${result}`);
+        } catch (error) {
+          console.log('❌ Redis ping failed:', error);
+        }
       }
     }, 10000);
   });
