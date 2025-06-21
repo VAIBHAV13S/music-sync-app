@@ -1,3 +1,13 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+console.log('[Checkpoint 1] Starting server script...');
+
+// Load environment variables from the root .env file
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+console.log('[Checkpoint 2] Environment variables loaded.');
+
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -9,6 +19,8 @@ import { logProduction, validateRoomCode } from './src/utils';
 import { PlaybackState } from './src/types';
 import * as roomManager from './src/roomManager';
 import { redis } from './src/redisClient';
+
+console.log('[Checkpoint 3] All modules imported. Redis client is initializing...');
 
 const app = express();
 const server = createServer(app);
@@ -434,7 +446,9 @@ process.on('SIGINT', () => {
 });
 
 // Start server
+console.log('[Checkpoint 4] Configuration complete. Attempting to start server...');
 server.listen(PORT, () => {
+  console.log('[Checkpoint 5] Server is listening!');
   logProduction('info', `🚀 Music Sync Server running on port ${PORT}`);
   logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   logProduction('info', `📡 WebSocket server ready`);

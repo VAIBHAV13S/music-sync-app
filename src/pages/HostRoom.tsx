@@ -6,9 +6,9 @@ import YouTubeSearch from '../components/YouTubeSearch';
 import { backgroundThemes } from '../utils/themes';
 
 function HostRoom() {
+  // --- SECTION 1: HOOKS (All hooks must be at the top) ---
   const { mode } = useParams<{ mode: string }>();
   const navigate = useNavigate();
-  
   const {
     room,
     isConnected,
@@ -33,8 +33,17 @@ function HostRoom() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   
   const playerSyncRef = useRef<YouTubePlayerRef>(null);
+  const creationInitiatedRef = useRef(false);
 
+  // --- SECTION 2: EFFECTS (All useEffect/useCallback must be next) ---
+
+  // Effect for creating the room (runs only once)
   useEffect(() => {
+    if (creationInitiatedRef.current || room) {
+      return;
+    }
+    creationInitiatedRef.current = true;
+
     const searchParams = new URLSearchParams(window.location.search);
     let roomCode = searchParams.get("room");
 
@@ -43,51 +52,28 @@ function HostRoom() {
       window.history.replaceState({}, '', `${window.location.pathname}?room=${roomCode}`);
     }
     
-    if (roomCode && !room) {
-      createRoom(roomCode).catch(err => {
-        console.error("Failed to create room:", err);
-        alert(`Error: ${err.message}. The room code might be taken.`);
-        navigate('/');
-      });
-    }
+    createRoom(roomCode).catch(err => {
+      console.error("Failed to create room:", err);
+      alert(`Error: ${(err as Error).message}. The room code might be taken.`);
+      navigate('/');
+    });
   }, [createRoom, navigate, room]);
 
-  // Show a loading screen until the room is created and available in the context
-  if (!room) {
-    return (
-      <div className={`min-h-screen ${backgroundThemes.dark} text-white flex flex-col items-center justify-center`}>
-        <div className="text-center p-8">
-          <div className="w-16 h-16 mx-auto mb-6 bg-purple-500/20 rounded-2xl flex items-center justify-center">
-            <svg className="w-8 h-8 text-purple-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </div>
-          <h3 className="text-2xl font-bold text-purple-300 mb-3">
-            Initializing Session...
-          </h3>
-          <p className="text-gray-400">
-            Please wait while we set up your room.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Track session start time
+  // Effect to track session start time
   useEffect(() => {
     if (isConnected && !sessionStartTime) {
       setSessionStartTime(new Date());
     }
   }, [isConnected, sessionStartTime]);
 
-  // Track songs played
+  // Effect to track songs played
   useEffect(() => {
     if (selectedVideoId) {
       setSessionStats(prev => ({ ...prev, songsPlayed: prev.songsPlayed + 1 }));
     }
   }, [selectedVideoId]);
 
-  // Simulate connection quality monitoring
+  // Effect to simulate connection quality monitoring
   useEffect(() => {
     const interval = setInterval(() => {
       const qualities = ['excellent', 'good', 'poor'] as const;
@@ -97,34 +83,37 @@ function HostRoom() {
     return () => clearInterval(interval);
   }, []);
 
-  // Generate QR Code URL
-  const generateQRCode = () => {
-    const joinUrl = `${window.location.origin}/join/${mode}?room=${room.roomCode}`;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
-  };
+  // --- SECTION 3: HANDLERS & HELPER FUNCTIONS ---
 
   const handleVideoLoad = useCallback((videoId: string) => {
-    console.log('🎵 Host video loaded:', videoId);
     syncVideoLoad(videoId);
   }, [syncVideoLoad]);
 
+  const handleSyncPlay = useCallback((videoId: string, currentTime: number) => {
+    syncPlay(videoId, currentTime);
+  }, [syncPlay]);
+
+  const handleSyncPause = useCallback((videoId: string, currentTime: number) => {
+    syncPause(videoId, currentTime);
+  }, [syncPause]);
+
   const handleTrackSelect = (videoId: string) => {
-    console.log('🎵 Host selected video:', videoId);
     setSelectedVideoId(videoId);
     setShowInstructions(false);
   };
 
-  const copyToClipboard = async () => {
+  const copyToClipboard = async (textToCopy: string) => {
     try {
-      await navigator.clipboard.writeText(room.roomCode);
+      await navigator.clipboard.writeText(textToCopy);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
-      console.error('Failed to copy room code:', err);
+      console.error('Failed to copy:', err);
     }
   };
 
   const shareRoom = async () => {
+    if (!room) return;
     const shareUrl = `${window.location.origin}/join/${mode}?room=${room.roomCode}`;
     
     if (navigator.share) {
@@ -135,12 +124,11 @@ function HostRoom() {
           url: shareUrl,
         });
       } catch (err) {
-        copyToClipboard();
+        // Fallback to clipboard if share fails
+        copyToClipboard(shareUrl);
       }
     } else {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
+      copyToClipboard(shareUrl);
     }
   };
 
@@ -161,19 +149,12 @@ function HostRoom() {
     }
   };
 
-  // Mode detection
-  const isGroupMode = mode === "group";
-  const modeTitle = isGroupMode ? "Group Listening Session" : "Private Listening Session";
-  const modeColor = isGroupMode ? "from-purple-600 via-blue-600 to-indigo-600" : "from-blue-600 via-indigo-600 to-purple-600";
-
-  // Connection quality styling
-  const connectionQualityConfig = {
-    excellent: { color: 'text-emerald-300', bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', status: 'Excellent', pulse: 'animate-pulse' },
-    good: { color: 'text-amber-300', bg: 'bg-amber-500/20', border: 'border-amber-500/50', status: 'Good', pulse: '' },
-    poor: { color: 'text-red-300', bg: 'bg-red-500/20', border: 'border-red-500/50', status: 'Poor', pulse: 'animate-pulse' }
+  const generateQRCodeUrl = () => {
+    if (!room) return "";
+    const joinUrl = `${window.location.origin}/join/${mode}?room=${room.roomCode}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
   };
 
-  // Session duration
   const getSessionDuration = () => {
     if (!sessionStartTime) return '0m';
     const now = new Date();
@@ -184,14 +165,40 @@ function HostRoom() {
     return `${minutes}m`;
   };
 
-  // Sync handlers
-  const handleSyncPlay = (videoId: string, currentTime: number) => {
-    syncPlay(videoId, currentTime);
-  };
+  // --- SECTION 4: CONDITIONAL RENDER (The "Guard Clause") ---
+  if (!room) {
+    return (
+      <div className={`min-h-screen ${backgroundThemes.dark} text-white flex flex-col items-center justify-center`}>
+        <div className="text-center p-8">
+          <div className="w-16 h-16 mx-auto mb-6 bg-purple-500/20 rounded-2xl flex items-center justify-center">
+            <svg className="w-8 h-8 text-purple-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-purple-300 mb-3">
+            Initializing Session...
+          </h3>
+          <p className="text-gray-400">
+            Please wait while we set up your room.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleSyncPause = (videoId: string, currentTime: number) => {
-    syncPause(videoId, currentTime);
+  // --- SECTION 5: MAIN RENDER (JSX) ---
+  // (This part only runs when `room` exists)
+
+  // Constants for styling, derived from state
+  const isGroupMode = mode === "group";
+  const modeTitle = isGroupMode ? "Group Listening Session" : "Private Listening Session";
+  const modeColor = isGroupMode ? "from-purple-600 via-blue-600 to-indigo-600" : "from-blue-600 via-indigo-600 to-purple-600";
+  const connectionQualityConfig = {
+    excellent: { color: 'text-emerald-300', bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', status: 'Excellent', pulse: 'animate-pulse' },
+    good: { color: 'text-amber-300', bg: 'bg-amber-500/20', border: 'border-amber-500/50', status: 'Good', pulse: '' },
+    poor: { color: 'text-red-300', bg: 'bg-red-500/20', border: 'border-red-500/50', status: 'Poor', pulse: 'animate-pulse' }
   };
+  const qrCodeUrl = generateQRCodeUrl();
 
   return (
     <div className={`min-h-screen ${backgroundThemes.dark} text-white relative overflow-hidden`}>
@@ -347,7 +354,7 @@ function HostRoom() {
               <p className="text-gray-400">Scan this QR code to join instantly</p>
             </div>
             <div className="bg-white p-6 rounded-2xl mb-6 inline-block shadow-lg">
-              <img src={generateQRCode()} alt="Join Room QR Code" className="w-48 h-48" />
+              <img src={qrCodeUrl} alt="Join Room QR Code" className="w-48 h-48" />
             </div>
             <button
               onClick={() => setShowQRCode(false)}
@@ -450,7 +457,7 @@ function HostRoom() {
                 </div>
                 
                 {/* Room Code Display */}
-                <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 border border-gray-600/50 rounded-2xl p-8 mb-8 group hover:from-gray-700/80 hover:to-gray-600/80 transition-all duration-300 cursor-pointer" onClick={copyToClipboard}>
+                <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 border border-gray-600/50 rounded-2xl p-8 mb-8 group hover:from-gray-700/80 hover:to-gray-600/80 transition-all duration-300 cursor-pointer" onClick={() => copyToClipboard(room.roomCode)}>
                   <div className="text-4xl font-mono font-black tracking-[0.4em] text-center text-white group-hover:scale-105 transition-transform duration-300 select-all">
                     {room.roomCode}
                   </div>
@@ -462,7 +469,7 @@ function HostRoom() {
                 {/* Action Buttons */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <button
-                    onClick={copyToClipboard}
+                    onClick={() => copyToClipboard(room.roomCode)}
                     className={`flex items-center justify-center gap-3 px-6 py-4 ${
                       copySuccess ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/25' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/25'
                     } rounded-2xl font-bold transition-all duration-200 transform hover:scale-105 shadow-xl`}

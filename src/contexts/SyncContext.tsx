@@ -102,8 +102,15 @@ export const SyncProvider: React.FC<SyncProviderProps> = ({ children }) => {
   }, [handlePlaybackSync, handleUserJoined, handleUserLeft, handleHostChanged, handleVideoLoad]);
 
   const createRoom = async (roomCode: string) => {
-    if (!realSocketService.isConnected) await realSocketService.connect();
+    console.log(`[SyncContext] createRoom called for code: ${roomCode}. Current socket connection state: ${connectionState}`);
+    if (!realSocketService.isConnected) {
+      console.log('[SyncContext] Socket not connected, attempting to connect first...');
+      await realSocketService.connect();
+      console.log('[SyncContext] Socket connected.');
+    }
+    console.log(`[SyncContext] Emitting 'create-room' to server...`);
     const roomData = await realSocketService.createRoom(roomCode);
+    console.log('[SyncContext] Received room data from server:', roomData);
     setRoom(roomData);
     setIsHost(true);
     setParticipantCount(roomData.participants.length);
