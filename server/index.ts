@@ -32,59 +32,40 @@ const PORT = process.env.PORT || 3001;
 // Trust proxy - IMPORTANT: Add this before rate limiting
 app.set('trust proxy', 1);
 
-// CORS configuration - MOVE THIS UP BEFORE OTHER MIDDLEWARE
+// Define allowed origins for CORS
 const allowedOrigins = isDevelopment 
-  ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
+  ? ['http://localhost:5173', 'http://127.0.0.1:5173']
   : [
-      /^https:\/\/music-sync.*\.vercel\.app$/, // Allow all music-sync Vercel deployments
+      'https://music-sync-app-ten.vercel.app/', // <-- Add your MAIN production frontend URL here
+      /^https:\/\/music-sync-.*\.vercel\.app$/, // Regex for Vercel preview deployments
     ];
 
-// Update CORS to handle regex
-app.use(cors({
-  origin: (origin, callback) => {
+// Use a single, robust CORS configuration for both Express and Socket.IO
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     
-    // Check if origin matches any allowed pattern
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        return allowed === origin;
-      }
-      // Handle regex patterns
-      return allowed.test(origin);
-    });
-    
+    const isAllowed = allowedOrigins.some(allowedOrigin => 
+      typeof allowedOrigin === 'string' ? allowedOrigin === origin : allowedOrigin.test(origin)
+    );
+
     if (isAllowed) {
-      return callback(null, true);
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    
-    if (isDevelopment) {
-      console.log('CORS rejected origin:', origin);
-    }
-    
-    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  optionsSuccessStatus: 200
-}));
-// Handle preflight requests explicitly
-app.options('*', (req: Request, res: Response) => {
-  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
+};
 
-// Production security headers
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
-}));
+// Apply CORS to Express
+app.use(cors(corsOptions));
 
+// Middleware setup
+app.use(helmet());
 app.use(compression());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json());
 
 // Rate limiting with proper proxy support - MOVED AFTER CORS AND EXPRESS.JSON
 const limiter = rateLimit({
@@ -153,15 +134,8 @@ app.get('/api/search', async (req: Request, res: Response) => {
 
 // Socket.IO server setup
 const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins, // This should now include your actual URL
-    methods: ['GET', 'POST'],
-    credentials: true
-  },
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  upgradeTimeout: 10000,
-  maxHttpBufferSize: 1e6,
+  cors: corsOptions,
+  transports: ['websocket', 'polling'], // Important for compatibility with proxies
 });
 
 // Socket connection handling
