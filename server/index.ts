@@ -40,6 +40,11 @@ import { redis } from './src/redisClient';
 
 console.log('[Checkpoint 3] All modules imported. Redis client is initializing...');
 
+// Keep only the most important listener
+redis.on('ready', () => {
+  logProduction('info', '✅ Redis connection established. Server is fully ready.');
+});
+
 const app = express();
 const server = createServer(app);
 
