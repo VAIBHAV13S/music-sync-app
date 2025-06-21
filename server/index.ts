@@ -458,23 +458,6 @@ const startServer = () => {
     
     const memUsage = process.memoryUsage();
     console.log(`Memory usage - RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB, Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
-    
-    // REMOVE THE REDIS LISTENERS FROM HERE - THEY'RE NOW AT THE TOP
-    
-    setTimeout(async () => {
-      console.log(`⚠️ Redis status after 5 seconds: ${redis.status}`);
-      
-      if (redis.status !== 'ready') {
-        console.log('⚠️ Redis might be having connection issues');
-        
-        try {
-          const result = await redis.ping();
-          console.log(`✅ Redis ping successful: ${result}`);
-        } catch (error) {
-          console.log('❌ Redis ping failed:', error);
-        }
-      }
-    }, 5000);
   });
 };
 
