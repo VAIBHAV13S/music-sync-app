@@ -514,34 +514,6 @@ export class AuthService {
   }
 
   // Get user by ID with enhanced data
-  async getUserById(id: string): Promise<IUserPublic | null> {
-    try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return null;
-      }
-      const user = await User.findById(id);
-      return user && user.isActive ? user.toPublic() : null;
-    } catch (error) {
-      console.error('Get user error:', error);
-      return null;
-    }
-  }
-
-  // Add a new method for getting full user data (including email)
-  async getUserByIdFull(id: string): Promise<IUser | null> {
-    try {
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return null;
-      }
-      const user = await User.findById(id);
-      return user && user.isActive ? user : null;
-    } catch (error) {
-      console.error('Get user error:', error);
-      return null;
-    }
-  }
-
-  // ✅ Single unified method that handles both public and private data
   async getUserById(id: string, includePrivateData: boolean = false): Promise<IUserPublic | IUser | null> {
     try {
       if (!mongoose.Types.ObjectId.isValid(id)) {

@@ -11,7 +11,7 @@ function Home({ onShowAuth }: HomeProps) {
   const { isAuthenticated, user, logout } = useAuth();
   const [quickJoinCode, setQuickJoinCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false); // Add state for logout loading
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleQuickJoin = async () => {
     if (!quickJoinCode.trim()) return;
@@ -39,9 +39,21 @@ function Home({ onShowAuth }: HomeProps) {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await logout();
+      await logout(); // Call logout without parameters for single device logout
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Logout failed:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  // ✅ Optional: Add handler for logout from all devices
+  const handleLogoutAllDevices = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout(true); // Pass true for all devices
+    } catch (error) {
+      console.error('Logout failed:', error);
     } finally {
       setIsLoggingOut(false);
     }
@@ -84,18 +96,55 @@ function Home({ onShowAuth }: HomeProps) {
                   <p className="text-gray-400 text-sm">{user?.email}</p>
                 </div>
               </div>
+              
+              {/* Single logout button */}
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
                 className="px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 disabled:bg-gray-600/50 disabled:cursor-not-allowed border border-gray-600/50 rounded-xl text-gray-300 hover:text-white transition-all duration-200"
               >
-                {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
+                {isLoggingOut ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Signing out...</span>
+                  </div>
+                ) : (
+                  'Sign Out'
+                )}
               </button>
+
+              {/* Optional: Dropdown with logout options */}
+              {/* Uncomment if you want both options */}
+              {/*
+              <div className="relative group">
+                <button
+                  className="px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-600/50 rounded-xl text-gray-300 hover:text-white transition-all duration-200"
+                >
+                  ⋮
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-48 bg-gray-800/90 backdrop-blur-md border border-gray-600/50 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                  <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="w-full px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700/50 rounded-t-xl transition-colors"
+                  >
+                    Sign out this device
+                  </button>
+                  <button
+                    onClick={handleLogoutAllDevices}
+                    disabled={isLoggingOut}
+                    className="w-full px-4 py-3 text-left text-gray-300 hover:text-white hover:bg-gray-700/50 rounded-b-xl transition-colors"
+                  >
+                    Sign out all devices
+                  </button>
+                </div>
+              </div>
+              */}
             </div>
           ) : (
             <button
               onClick={onShowAuth}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold transition-all duration-200 hover:scale-105"
+              className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-xl font-medium transition-all duration-200"
             >
               Sign In
             </button>
