@@ -605,16 +605,26 @@ app.post('/api/auth/logout', async (req: Request, res: Response): Promise<void> 
 
 app.get('/api/auth/me', authenticateToken, async (req: any, res: Response): Promise<void> => {
   try {
-    const user = await authService.getUserById(req.user.id);
+    // ✅ Get full user data including private fields
+    const user = await authService.getUserById(req.user.id, true) as any;
     if (user) {
       res.json({
         id: user._id,
         username: user.username,
         email: user.email,
+        displayName: user.profile?.displayName,
         avatar: user.avatar,
+        bio: user.profile?.bio,
+        favoriteGenres: user.profile?.favoriteGenres || [],
         createdAt: user.createdAt,
         lastLogin: user.lastLogin,
-        preferences: user.preferences
+        isVerified: user.isVerified,
+        preferences: user.preferences,
+        profile: {
+          totalListeningTime: user.profile?.totalListeningTime || 0,
+          joinedRooms: user.profile?.joinedRooms || 0,
+          hostedRooms: user.profile?.hostedRooms || 0
+        }
       });
     } else {
       res.status(404).json({ error: 'User not found' });

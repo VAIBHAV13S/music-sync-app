@@ -11,6 +11,7 @@ function Home({ onShowAuth }: HomeProps) {
   const { isAuthenticated, user, logout } = useAuth();
   const [quickJoinCode, setQuickJoinCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false); // Add state for logout loading
 
   const handleQuickJoin = async () => {
     if (!quickJoinCode.trim()) return;
@@ -32,6 +33,17 @@ function Home({ onShowAuth }: HomeProps) {
       navigate(`/join/group?room=${quickJoinCode.toUpperCase()}`);
     } finally {
       setIsJoining(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -73,10 +85,11 @@ function Home({ onShowAuth }: HomeProps) {
                 </div>
               </div>
               <button
-                onClick={logout}
-                className="px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-600/50 rounded-xl text-gray-300 hover:text-white transition-all duration-200"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 disabled:bg-gray-600/50 disabled:cursor-not-allowed border border-gray-600/50 rounded-xl text-gray-300 hover:text-white transition-all duration-200"
               >
-                Sign Out
+                {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
               </button>
             </div>
           ) : (
