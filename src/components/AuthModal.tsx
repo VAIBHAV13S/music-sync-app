@@ -48,7 +48,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           setError(result.error || 'Login failed');
         }
       }
-    } catch (error) {
+    } catch {
       setError('An unexpected error occurred');
     } finally {
       setIsLoading(false);
@@ -63,92 +63,79 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className="bg-gray-900/95 backdrop-blur-2xl border border-gray-700/50 rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-2xl font-bold text-white">
-              {mode === 'login' ? 'Welcome Back' : 'Create Account'}
-            </h2>
-            <p className="text-gray-400 mt-1">
-              {mode === 'login' ? 'Sign in to your account' : 'Join the music sync community'}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-800 rounded-xl text-gray-400 hover:text-white transition-all duration-200"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-6">
+      <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl p-8 w-full max-w-lg shadow-xl">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="text-center mb-6">
+          <h2 className="text-3xl font-semibold text-white">{mode === 'login' ? 'Sign In' : 'Register'}</h2>
+          <p className="text-zinc-400 text-sm mt-1">
+            {mode === 'login' ? 'Access your account' : 'Join the platform today'}
+          </p>
         </div>
 
-        {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl">
-            <p className="text-red-300 text-sm">{error}</p>
+          <div className="mb-4 px-4 py-2 bg-red-600/10 text-red-400 text-sm border border-red-500/20 rounded-lg">
+            {error}
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-2">Username</label>
               <input
                 type="text"
                 name="username"
                 value={formData.username}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
-                placeholder="Choose a username"
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-md text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                placeholder="Username"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2">
-              {mode === 'login' ? 'Email or Username' : 'Email'}
-            </label>
             <input
               type={mode === 'login' ? 'text' : 'email'}
               name="email"
               value={formData.email}
               onChange={handleInputChange}
               required
-              className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
-              placeholder={mode === 'login' ? 'Enter email or username' : 'Enter your email'}
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-md text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              placeholder={mode === 'login' ? 'Email or Username' : 'Email'}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2">Password</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleInputChange}
               required
-              className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
-              placeholder="Enter your password"
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-md text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              placeholder="Password"
             />
           </div>
 
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-2">Confirm Password</label>
               <input
                 type="password"
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
-                placeholder="Confirm your password"
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-md text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                placeholder="Confirm Password"
               />
             </div>
           )}
@@ -156,32 +143,29 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-all duration-200 hover:scale-105 disabled:transform-none flex items-center justify-center gap-2"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-600 text-white font-medium rounded-md transition-colors"
           >
             {isLoading ? (
-              <>
+              <div className="flex items-center justify-center gap-2">
                 <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {mode === 'login' ? 'Signing in...' : 'Creating account...'}
-              </>
+                {mode === 'login' ? 'Signing in...' : 'Registering...'}
+              </div>
             ) : (
-              mode === 'login' ? 'Sign In' : 'Create Account'
+              mode === 'login' ? 'Sign In' : 'Register'
             )}
           </button>
         </form>
 
-        {/* Mode Toggle */}
-        <div className="mt-8 text-center">
-          <p className="text-gray-400">
-            {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
-            <button
-              onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-              className="ml-2 text-blue-400 hover:text-blue-300 font-semibold transition-colors duration-200"
-            >
-              {mode === 'login' ? 'Sign up' : 'Sign in'}
-            </button>
-          </p>
+        <div className="mt-6 text-center text-sm text-zinc-400">
+          {mode === 'login' ? 'New here?' : 'Already have an account?'}{' '}
+          <button
+            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+            className="text-blue-400 hover:underline font-medium"
+          >
+            {mode === 'login' ? 'Create one' : 'Sign in'}
+          </button>
         </div>
       </div>
     </div>
