@@ -159,8 +159,6 @@ UserSchema.methods.toPublic = function(this: IUser): IUserPublic {
 };
 
 // Create indexes for better performance
-UserSchema.index({ email: 1 });
-UserSchema.index({ username: 1 });
 UserSchema.index({ createdAt: -1 });
 
 export const User = mongoose.model<IUser>('User', UserSchema);

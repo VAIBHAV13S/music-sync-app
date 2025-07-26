@@ -1,7 +1,6 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import YouTubeSearch from "../components/YouTubeSearch";
 import YouTubePlayer, { YouTubePlayerRef } from "../components/YouTubePlayer";
-import { backgroundThemes, buttonThemes } from "../utils/themes";
 import { useSync } from "../hooks/useSync";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -160,7 +159,7 @@ function HostRoom() {
   };
 
   return (
-    <div className={`min-h-screen ${backgroundThemes.dark} text-white relative overflow-hidden`}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 text-white relative overflow-hidden">
       {/* Animated Background */}
       <div className="fixed inset-0 -z-10">
         <div className={`absolute inset-0 bg-gradient-to-br ${modeColor} opacity-5`}></div>

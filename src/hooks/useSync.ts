@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { realSocketService } from '../services/realSocketService';
 import type { PlaybackState } from '../services/realSocketService';
 
@@ -17,6 +18,7 @@ const connectionState = {
 };
 
 export const useSync = ({ roomCode, isHost, onSyncReceived, onVideoLoadReceived }: UseSyncProps) => {
+  const { token, user } = useAuth();
   const [connected, setConnected] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const lastSyncRef = useRef(0);
@@ -201,6 +203,6 @@ export const useSync = ({ roomCode, isHost, onSyncReceived, onVideoLoadReceived 
     syncPlay,
     syncPause,
     syncSeek,
-    syncVideoLoad,
+    syncVideoLoad
   };
 };

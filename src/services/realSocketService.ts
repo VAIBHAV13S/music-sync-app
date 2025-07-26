@@ -176,6 +176,9 @@ class RealSocketService {
       }
 
       this.socket = io(this.serverUrl, {
+        auth: {
+          token: localStorage.getItem('accessToken') // ✅ Fixed: Added authentication token
+        },
         transports: ['websocket', 'polling'],
         timeout: 15000,
         forceNew: true,

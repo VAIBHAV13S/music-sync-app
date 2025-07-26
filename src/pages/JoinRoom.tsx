@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import YouTubePlayer, { YouTubePlayerRef } from "../components/YouTubePlayer";
-import { backgroundThemes, buttonThemes } from "../utils/themes";
 import { useSync } from "../hooks/useSync";
 import type { PlaybackState } from "../services/realSocketService";
 
@@ -144,7 +143,7 @@ function JoinRoom() {
   // Participant View (After Joining)
   if (joined) {
     return (
-      <div className={`min-h-screen ${backgroundThemes.dark} text-white relative overflow-hidden`}>
+      <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 text-white relative overflow-hidden`}>
         {/* Animated Background */}
         <div className="fixed inset-0 -z-10">
           <div className={`absolute inset-0 bg-gradient-to-br ${modeColor} opacity-5`}></div>
@@ -218,7 +217,7 @@ function JoinRoom() {
                   }`}>
                     <div className={`w-3 h-3 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-400'} animate-pulse`}></div>
                     <span className="font-semibold">
-                      {connected ? 'Synchronized' : 'Disconnected'}
+                      {connected ? 'Connected' : 'Connecting...'}
                     </span>
                   </div>
                   
@@ -227,34 +226,28 @@ function JoinRoom() {
                     <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border backdrop-blur-xl transition-all duration-300 ${
                       connectionQualityConfig[connectionQuality].bg
                     } ${connectionQualityConfig[connectionQuality].border} ${connectionQualityConfig[connectionQuality].color}`}>
-                      <div className={`w-3 h-3 rounded-full bg-current ${connectionQualityConfig[connectionQuality].pulse}`}></div>
-                      <span className="font-semibold">
-                        {connectionQualityConfig[connectionQuality].status}
-                      </span>
+                      <span className={`w-2 h-2 rounded-full ${connectionQualityConfig[connectionQuality].pulse}`}>●</span>
+                      <span className="font-medium">{connectionQualityConfig[connectionQuality].status}</span>
                     </div>
                   )}
                   
                   {/* Participant Count */}
                   {connected && participantCount > 0 && (
                     <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-300 backdrop-blur-xl">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
-                      <span className="font-semibold">
-                        {participantCount} participant{participantCount !== 1 ? 's' : ''} total
-                      </span>
+                      <span className="font-medium">{participantCount} participant{participantCount !== 1 ? 's' : ''}</span>
                     </div>
                   )}
                   
                   {/* Session Duration */}
                   {sessionStartTime && (
                     <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-300 backdrop-blur-xl">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span className="font-semibold">
-                        {getSessionDuration()}
-                      </span>
+                      <span className="font-medium">{getSessionDuration()}</span>
                     </div>
                   )}
                 </div>
@@ -270,7 +263,7 @@ function JoinRoom() {
                   
                   {/* Room Code Display */}
                   <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 border border-gray-600/50 rounded-2xl p-6 mb-6">
-                    <div className="text-3xl font-mono font-black tracking-[0.4em] text-center text-white">
+                    <div className="text-4xl font-mono font-black tracking-[0.4em] text-center text-white">
                       {roomCode}
                     </div>
                   </div>
@@ -279,9 +272,9 @@ function JoinRoom() {
                   <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6">
                     <div className="flex items-center justify-center gap-3 mb-3">
                       <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M8.464 8.464a5 5 0 000 7.072m-2.828-9.9a9 9 0 000 14.142" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
-                      <span className="text-blue-300 font-semibold">Listening Mode</span>
+                      <span className="text-lg font-bold text-blue-300">Participant Mode</span>
                     </div>
                     <p className="text-gray-400 text-center text-sm">
                       Playback is controlled by the room host. You'll hear everything in perfect sync.
@@ -289,104 +282,106 @@ function JoinRoom() {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Main Content */}
-          <div className="px-8 pb-16">
-            <div className="max-w-6xl mx-auto space-y-12">
+              {/* Main Content */}
+              <div className="px-8 pb-16">
+                <div className="max-w-6xl mx-auto space-y-12">
 
-              {/* Sync Status */}
-              {syncState && (
-                <div className="text-center">
-                  <div className="bg-purple-500/10 border border-purple-500/20 rounded-3xl p-8 backdrop-blur-xl">
-                    <div className="w-16 h-16 mx-auto mb-6 bg-purple-500/20 rounded-2xl flex items-center justify-center">
-                      <svg className="w-8 h-8 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-bold text-purple-300 mb-3">
-                      Synchronized Playback
-                    </h3>
-                    <p className="text-gray-400 mb-4">
-                      {syncState.isPlaying ? 'Playing' : 'Paused'} at {Math.floor(syncState.currentTime)}s
-                    </p>
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-lg text-purple-300 text-sm">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                      Perfect sync with host
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Connection Status */}
-              {!connected && (
-                <div className="text-center">
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-8 backdrop-blur-xl">
-                    <div className="w-16 h-16 mx-auto mb-6 bg-amber-500/20 rounded-2xl flex items-center justify-center">
-                      <svg className="w-8 h-8 text-amber-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-bold text-amber-300 mb-3">
-                      Reconnecting to Host
-                    </h3>
-                    <p className="text-gray-400">
-                      Attempting to restore synchronization...
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* YouTube Player */}
-              {currentVideoId && (
-                <div>
-                  <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Now Playing</h2>
-                    <p className="text-xl text-gray-400">Synchronized with the host's playback</p>
-                  </div>
-                  
-                  <div className="bg-gray-900/40 backdrop-blur-2xl border border-gray-700/50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500">
-                    <YouTubePlayer 
-                      ref={playerSyncRef}
-                      videoId={currentVideoId}
-                      isHost={false}
-                      initialSyncState={syncState}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Waiting for Host */}
-              {!currentVideoId && connected && (
-                <div className="text-center">
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-3xl p-12 backdrop-blur-xl">
-                    <div className="w-20 h-20 mx-auto mb-8 bg-blue-500/20 rounded-3xl flex items-center justify-center">
-                      <svg className="w-10 h-10 text-blue-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                      </svg>
-                    </div>
-                    <h3 className="text-3xl font-bold mb-6">Waiting for Host</h3>
-                    <p className="text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-                      You're connected and ready! Waiting for the host to start playing music.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-8">
-                      <div className="flex items-center gap-3 text-gray-400">
-                        <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
-                        <span className="font-medium">Connected</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-gray-400">
-                        <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
-                        <span className="font-medium">Synchronized</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-gray-400">
-                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-pulse"></div>
-                        <span className="font-medium">Ready to play</span>
+                  {/* Sync Status */}
+                  {syncState && (
+                    <div className="text-center">
+                      <div className="bg-purple-500/10 border border-purple-500/20 rounded-3xl p-8 backdrop-blur-xl">
+                        <div className="w-16 h-16 mx-auto mb-6 bg-purple-500/20 rounded-2xl flex items-center justify-center">
+                          <svg className="w-8 h-8 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-purple-300 mb-3">
+                          Synchronized Playback
+                        </h3>
+                        <p className="text-gray-400 mb-4">
+                          Playing {syncState.isPlaying ? 'at' : 'paused at'} {syncState.currentTime.toFixed(1)}s
+                        </p>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 rounded-lg text-purple-300 text-sm">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 8 8">
+                            <circle cx="4" cy="4" r="4"/>
+                          </svg>
+                          Perfect sync with host
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Connection Status */}
+                  {!connected && (
+                    <div className="text-center">
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-8 backdrop-blur-xl">
+                        <div className="w-16 h-16 mx-auto mb-6 bg-amber-500/20 rounded-2xl flex items-center justify-center">
+                          <svg className="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-amber-300 mb-3">
+                          Reconnecting to Host
+                        </h3>
+                        <p className="text-gray-400">
+                          Attempting to restore synchronization...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* YouTube Player */}
+                  {currentVideoId && (
+                    <div>
+                      <div className="text-center mb-12">
+                        <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Now Playing</h2>
+                        <p className="text-xl text-gray-400">Synchronized with the host's playback</p>
+                      </div>
+                      
+                      <div className="bg-gray-900/40 backdrop-blur-2xl border border-gray-700/50 rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500">
+                        <YouTubePlayer 
+                          ref={playerSyncRef}
+                          videoId={currentVideoId}
+                          isHost={false}
+                          initialSyncState={syncState}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Waiting for Host */}
+                  {!currentVideoId && connected && (
+                    <div className="text-center">
+                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-3xl p-12 backdrop-blur-xl">
+                        <div className="w-20 h-20 mx-auto mb-8 bg-blue-500/20 rounded-3xl flex items-center justify-center">
+                          <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-3xl font-bold mb-6">Waiting for Host</h3>
+                        <p className="text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
+                          You're connected and ready! Waiting for the host to start playing music.
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-8">
+                          <div className="flex items-center gap-3 text-gray-400">
+                            <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
+                            <span className="font-medium">Connected</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-400">
+                            <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                            <span className="font-medium">Synchronized</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-400">
+                            <div className="w-3 h-3 bg-purple-400 rounded-full animate-pulse"></div>
+                            <span className="font-medium">Ready to play</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -396,7 +391,7 @@ function JoinRoom() {
 
   // Join Room View (Before Joining)
   return (
-    <div className={`min-h-screen ${backgroundThemes.dark} text-white relative overflow-hidden`}>
+    <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 text-white relative overflow-hidden`}>
       {/* Animated Background */}
       <div className="fixed inset-0 -z-10">
         <div className={`absolute inset-0 bg-gradient-to-br ${modeColor} opacity-5`}></div>
