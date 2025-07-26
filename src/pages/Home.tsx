@@ -19,18 +19,20 @@ function Home({ onShowAuth }: HomeProps) {
     setIsJoining(true);
     
     try {
+      // ✅ Fix: Remove trailing slash
+      const API_BASE_URL = (import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3001').replace(/\/$/, '');
+      
       // Check if room exists before navigating
-      const response = await fetch(`${import.meta.env.VITE_SOCKET_SERVER_URL}/api/rooms/${quickJoinCode}`);
+      const response = await fetch(`${API_BASE_URL}/api/rooms/${quickJoinCode}`);
       
       if (response.ok) {
-        navigate(`/join/group?room=${quickJoinCode.toUpperCase()}`);
+        navigate(`/join/${quickJoinCode}`);
       } else {
-        alert('Room not found. Please check the room code.');
+        // Handle room not found
+        console.error('Room not found');
       }
     } catch (error) {
-      console.error('Error checking room:', error);
-      // Navigate anyway for demo purposes
-      navigate(`/join/group?room=${quickJoinCode.toUpperCase()}`);
+      console.error('Failed to check room:', error);
     } finally {
       setIsJoining(false);
     }
