@@ -147,8 +147,11 @@ export class AuthService {
     validationErrors?: string[];
   }> {
     try {
+      console.log('🔥 AuthService.register called with:', { username, email, hasPassword: !!password });
+    
       // Input validation
       if (!username || !email || !password) {
+        console.log('❌ Missing required fields');
         return { success: false, error: 'All fields are required' };
       }
 
@@ -178,6 +181,7 @@ export class AuthService {
         };
       }
 
+      console.log('🔍 Checking for existing user...');
       // Check if user already exists
       const existingUser = await User.findOne({
         $or: [
@@ -187,6 +191,11 @@ export class AuthService {
       });
 
       if (existingUser) {
+        console.log('❌ User already exists:', { 
+          email: existingUser.email === email.toLowerCase().trim(),
+          username: existingUser.username === username.trim()
+        });
+        
         if (existingUser.email === email.toLowerCase().trim()) {
           return { success: false, error: 'An account with this email already exists' };
         } else {
@@ -194,6 +203,8 @@ export class AuthService {
         }
       }
 
+      console.log('✅ No existing user found, creating new user...');
+      
       // Create new user
       const user = new User({
         username: username.trim(),
@@ -202,46 +213,60 @@ export class AuthService {
         lastLogin: new Date()
       });
 
-      await user.save();
+      console.log('💾 Saving user to database...');
+      const savedUser = await user.save();
+      console.log('✅ User saved successfully:', { 
+        id: savedUser._id, 
+        username: savedUser.username, 
+        email: savedUser.email 
+      });
 
       // Generate tokens
       const userTokenData = {
-        id: user._id.toString(),
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar
+        id: savedUser._id.toString(),
+        username: savedUser.username,
+        email: savedUser.email,
+        avatar: savedUser.avatar
       };
+      
+      console.log('🔐 Generating tokens...');
       const tokens = this.generateTokens(userTokenData);
       
+      console.log('💾 Saving refresh token...');
       // Save refresh token
       const refreshTokenDoc = new RefreshToken({
         token: tokens.refreshToken,
-        userId: user._id,
-        userAgent: undefined, // We'll add this later
-        ipAddress: undefined  // We'll add this later
+        userId: savedUser._id
       });
       await refreshTokenDoc.save();
+      console.log('✅ Refresh token saved');
 
+      const responseUser = {
+        id: savedUser._id,
+        username: savedUser.username,
+        email: savedUser.email,
+        avatar: savedUser.avatar,
+        createdAt: savedUser.createdAt,
+        lastLogin: savedUser.lastLogin,
+        preferences: savedUser.preferences
+      };
+
+      console.log('🎉 Registration successful for:', savedUser.username);
+      
       return {
         success: true,
-        user: {
-          id: user._id,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-          createdAt: user.createdAt,
-          lastLogin: user.lastLogin,
-          preferences: user.preferences
-        },
+        user: responseUser,
         tokens
       };
 
     } catch (error: any) {
-      console.error('Registration error:', error);
+      console.error('💥 Registration error:', error);
+      console.error('📋 Error stack:', error.stack);
       
       // Handle MongoDB duplicate key errors
       if (error.code === 11000) {
-        const field = Object.keys(error.keyValue)[0];
+        const field = Object.keys(error.keyValue || {})[0];
+        console.log('❌ Duplicate key error for field:', field);
         return { 
           success: false, 
           error: `An account with this ${field} already exists` 

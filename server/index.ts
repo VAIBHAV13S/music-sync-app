@@ -9,6 +9,7 @@ import { authService, authenticateToken } from './auth';
 import { connectDatabase } from './database/connection';
 import { Room } from './models/Room';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 const app = express();
 const server = createServer(app);
@@ -547,59 +548,131 @@ app.get('/api/environment', (_req: Request, res: Response): void => {
   });
 });
 
-// Auth routes
+// Auth routes with proper error handling
 app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('🔥 Registration attempt:', { 
+      username: req.body.username, 
+      email: req.body.email,
+      hasPassword: !!req.body.password 
+    });
+
     const { username, email, password } = req.body;
+    
+    // Validate input
+    if (!username || !email || !password) {
+      console.log('❌ Registration failed: Missing fields');
+      res.status(400).json({ 
+        success: false, 
+        error: 'All fields are required' 
+      });
+      return;
+    }
+
     const result = await authService.register(username, email, password);
+    console.log('📊 Registration result:', { success: result.success, error: result.error });
     
     if (result.success) {
+      console.log('✅ User registered successfully:', result.user?.username);
       res.status(201).json(result);
     } else {
+      console.log('❌ Registration failed:', result.error);
       res.status(400).json(result);
     }
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+  } catch (error: any) {
+    console.error('💥 Registration server error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error during registration' 
+    });
   }
 });
 
 app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { emailOrUsername, password } = req.body;
-    const result = await authService.login(emailOrUsername, password);
+    console.log('🔐 Login attempt:', { 
+      emailOrUsername: req.body.emailOrUsername,
+      hasPassword: !!req.body.password 
+    });
+
+    const { emailOrUsername, password, userAgent, ipAddress } = req.body;
+    
+    if (!emailOrUsername || !password) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Email/username and password are required' 
+      });
+      return;
+    }
+
+    const result = await authService.login(
+      emailOrUsername, 
+      password, 
+      userAgent || req.get('User-Agent'), 
+      ipAddress || req.ip
+    );
+    
+    console.log('📊 Login result:', { success: result.success, error: result.error });
     
     if (result.success) {
+      console.log('✅ User logged in successfully:', result.user?.username);
       res.json(result);
     } else {
+      console.log('❌ Login failed:', result.error);
       res.status(401).json(result);
     }
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+  } catch (error: any) {
+    console.error('💥 Login server error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error during login' 
+    });
   }
 });
 
 app.post('/api/auth/refresh', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { refreshToken } = req.body;
-    const result = await authService.refreshToken(refreshToken);
+    const { refreshToken, userAgent, ipAddress } = req.body;
+    
+    if (!refreshToken) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Refresh token is required' 
+      });
+      return;
+    }
+
+    const result = await authService.refreshToken(
+      refreshToken,
+      userAgent || req.get('User-Agent'),
+      ipAddress || req.ip
+    );
     
     if (result.success) {
       res.json(result);
     } else {
       res.status(401).json(result);
     }
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+  } catch (error: any) {
+    console.error('💥 Token refresh server error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error during token refresh' 
+    });
   }
 });
 
 app.post('/api/auth/logout', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { refreshToken } = req.body;
-    await authService.logout(refreshToken);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+    const { refreshToken, allDevices, userId } = req.body;
+    const result = await authService.logout(refreshToken, allDevices, userId);
+    res.json(result);
+  } catch (error: any) {
+    console.error('💥 Logout server error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error during logout' 
+    });
   }
 });
 
@@ -762,3 +835,46 @@ const startServer = async () => {
 
 // Start the server
 startServer();
+
+// Add this endpoint for testing database connection:
+
+app.get('/api/test-db', async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log('🧪 Testing database connection...');
+    
+    // Import User model
+    const { User } = await import('./models/User');
+    
+    // Try to count users
+    const userCount = await User.countDocuments();
+    console.log('👥 Current user count:', userCount);
+    
+    // Test creating a simple document (won't save)
+    const testUser = new User({
+      username: 'testuser' + Date.now(),
+      email: 'test@example.com',
+      hashedPassword: 'testpassword123'
+    });
+    
+    // Validate without saving
+    const validationError = testUser.validateSync();
+    
+    res.json({
+      success: true,
+      message: 'Database connection working',
+      userCount,
+      validationTest: validationError ? 'Failed' : 'Passed',
+      validationError: validationError?.message,
+      connectionState: mongoose.connection.readyState,
+      dbName: mongoose.connection.name
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Database test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      connectionState: mongoose.connection.readyState
+    });
+  }
+});
