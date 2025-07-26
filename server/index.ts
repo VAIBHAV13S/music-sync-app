@@ -5,6 +5,10 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import compression from 'compression';
+import { authService, authenticateToken } from './auth';
+import { connectDatabase } from './database/connection';
+import { Room } from './models/Room';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 const server = createServer(app);
@@ -119,10 +123,13 @@ const io = new Server(server, {
 interface Room {
   roomCode: string;
   hostId: string;
-  participants: string[];
+  hostUser?: { id: string; username: string; avatar?: string };
+  participants: Array<{ socketId: string; userId: string; username: string; avatar?: string }>;
   currentTrack?: PlaybackState | undefined;
   createdAt: number;
   lastActivity: number;
+  isPrivate: boolean;
+  password?: string;
 }
 
 interface PlaybackState {
@@ -229,7 +236,8 @@ function leaveRoom(socketId: string, roomCode: string): void {
   const room = rooms.get(roomCode);
   if (!room) return;
 
-  room.participants = room.participants.filter(id => id !== socketId);
+  // Fix: Filter by comparing socketId property of participant objects
+  room.participants = room.participants.filter(participant => participant.socketId !== socketId);
   updateRoomActivity(roomCode);
 
   io.to(roomCode).emit('user-left', {
@@ -240,7 +248,8 @@ function leaveRoom(socketId: string, roomCode: string): void {
 
   if (room.hostId === socketId) {
     if (room.participants.length > 0) {
-      room.hostId = room.participants[0];
+      // Fix: Use socketId property of the first participant
+      room.hostId = room.participants[0].socketId;
       io.to(roomCode).emit('host-changed', {
         newHostId: room.hostId,
         roomCode
@@ -285,43 +294,39 @@ io.on('connection', (socket) => {
   });
 
   // Create room handler
-  socket.on('create-room', (data, callback) => {
+  socket.on('create-room', async (data, callback) => {
     try {
-      const { roomCode } = data;
+      const { roomCode, isPrivate, password } = data;
+      const user = socket.data.user;
 
       if (!validateRoomCode(roomCode)) {
         callback({ success: false, error: 'Invalid room code format' });
         return;
       }
 
-      if (rooms.has(roomCode)) {
-        const existingRoom = rooms.get(roomCode)!;
-        
-        if (existingRoom.hostId === socket.id || existingRoom.participants.includes(socket.id)) {
-          updateRoomActivity(roomCode);
-          callback({ success: true, room: existingRoom });
-          return;
-        }
-        
+      // Check if room already exists in database
+      const existingRoom = await Room.findOne({ roomCode });
+      if (existingRoom) {
         callback({ success: false, error: 'Room already exists' });
         return;
       }
 
-      const room: Room = {
+      // Create room in database
+      const room = new Room({
         roomCode,
         hostId: socket.id,
-        participants: [socket.id],
-        currentTrack: undefined,
-        createdAt: Date.now(),
-        lastActivity: Date.now()
-      };
+        hostUser: { id: user.id, username: user.username, avatar: user.avatar },
+        participants: [{ socketId: socket.id, userId: user.id, username: user.username, avatar: user.avatar }],
+        isPrivate: isPrivate || false,
+        password: password || undefined
+      });
 
-      rooms.set(roomCode, room);
+      await room.save();
       socket.join(roomCode);
       userRooms.set(socket.id, roomCode);
 
-      logProduction('info', `🏠 Room created: ${roomCode} by ${socket.id}`);
-      callback({ success: true, room });
+      logProduction('info', `🏠 Room created: ${roomCode} by ${user.username} (${user.id})`);
+      callback({ success: true, room: { ...room.toObject(), password: undefined } });
 
     } catch (error) {
       logProduction('error', 'Create room error:', error);
@@ -329,45 +334,61 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join room handler
-  socket.on('join-room', (data, callback) => {
+  // Updated room joining with database
+  socket.on('join-room', async (data, callback) => {
     try {
-      const { roomCode } = data;
+      const { roomCode, password } = data;
+      const user = socket.data.user;
 
       if (!validateRoomCode(roomCode)) {
         callback({ success: false, error: 'Invalid room code format' });
         return;
       }
 
-      const room = rooms.get(roomCode);
+      const room = await Room.findOne({ roomCode });
       if (!room) {
         callback({ success: false, error: 'Room not found' });
         return;
       }
 
-      if (!room.participants.includes(socket.id)) {
-        room.participants.push(socket.id);
+      // Check password for private rooms
+      if (room.isPrivate && room.password && room.password !== password) {
+        callback({ success: false, error: 'Incorrect room password' });
+        return;
       }
+
+      // Check if user already in room
+      const existingParticipant = room.participants.find(p => p.userId === user.id);
+      if (!existingParticipant) {
+        room.participants.push({ 
+          socketId: socket.id, 
+          userId: user.id, 
+          username: user.username, 
+          avatar: user.avatar,
+          joinedAt: new Date()
+        });
+        
+        // Update peak participants
+        if (room.participants.length > room.stats.peakParticipants) {
+          room.stats.peakParticipants = room.participants.length;
+        }
+      }
+
+      room.lastActivity = new Date();
+      await room.save();
 
       userRooms.set(socket.id, roomCode);
       socket.join(roomCode);
-      updateRoomActivity(roomCode);
 
       // Notify other participants
       socket.to(roomCode).emit('user-joined', {
-        userId: socket.id,
+        user: { id: user.id, username: user.username, avatar: user.avatar },
         roomCode,
         participantCount: room.participants.length
       });
 
-      // Send current track to new participant
-      if (room.currentTrack) {
-        socket.emit('playback-sync', room.currentTrack);
-        logProduction('info', `📡 Sent current track to new participant: ${room.currentTrack.videoId}`);
-      }
-
-      logProduction('info', `👥 User joined room: ${roomCode} (${room.participants.length} total)`);
-      callback({ success: true, room });
+      logProduction('info', `👥 ${user.username} joined room: ${roomCode} (${room.participants.length} total)`);
+      callback({ success: true, room: { ...room.toObject(), password: undefined } });
 
     } catch (error) {
       logProduction('error', 'Join room error:', error);
@@ -477,26 +498,35 @@ app.get('/api/stats', (_req: Request, res: Response): void => {
 
 // API route for room info
 app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
-  const { roomCode } = req.params;
-  
-  if (!validateRoomCode(roomCode)) {
-    res.status(400).json({ error: 'Invalid room code format' });
-    return;
-  }
+  try {
+    const { roomCode } = req.params;
+    
+    if (!validateRoomCode(roomCode)) {
+      res.status(400).json({ error: 'Invalid room code format' });
+      return;
+    }
 
-  const room = rooms.get(roomCode);
-  if (!room) {
-    res.status(404).json({ error: 'Room not found' });
-    return;
-  }
+    const room = rooms.get(roomCode);
+    if (!room) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
 
-  res.json({
-    roomCode: room.roomCode,
-    participantCount: room.participants.length,
-    hasCurrentTrack: !!room.currentTrack,
-    createdAt: new Date(room.createdAt).toISOString(),
-    lastActivity: new Date(room.lastActivity).toISOString()
-  });
+    // Return room info without sensitive data
+    res.json({
+      success: true,
+      room: {
+        roomCode: room.roomCode,
+        participantCount: room.participants.length,
+        isActive: true,
+        createdAt: room.createdAt,
+        lastActivity: room.lastActivity
+      }
+    });
+  } catch (error) {
+    logProduction('error', 'Room check error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // Environment info endpoint for debugging
@@ -515,6 +545,104 @@ app.get('/api/environment', (_req: Request, res: Response): void => {
     corsEnabled: true,
     socketsConnected: io.engine.clientsCount
   });
+});
+
+// Auth routes
+app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { username, email, password } = req.body;
+    const result = await authService.register(username, email, password);
+    
+    if (result.success) {
+      res.status(201).json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { emailOrUsername, password } = req.body;
+    const result = await authService.login(emailOrUsername, password);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(401).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/refresh', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    const result = await authService.refreshToken(refreshToken);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(401).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/logout', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    await authService.logout(refreshToken);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+app.get('/api/auth/me', authenticateToken, async (req: any, res: Response): Promise<void> => {
+  try {
+    const user = await authService.getUserById(req.user.id);
+    if (user) {
+      res.json({
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
+        preferences: user.preferences
+      });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    logProduction('error', '/api/auth/me error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update socket authentication
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+
+// Socket.IO authentication middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  
+  if (!token) {
+    return next(new Error('Authentication error: No token provided'));
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    socket.data.user = decoded;
+    next();
+  } catch (err) {
+    next(new Error('Authentication error: Invalid token'));
+  }
 });
 
 // Error handling middleware
@@ -588,24 +716,39 @@ process.on('SIGINT', () => {
   });
 });
 
-// Start server
-server.listen(PORT, () => {
-  const environment = isLocalDev ? 'Local Development' : isRenderDev ? 'Render Development' : 'Production';
-  
-  logProduction('info', `🎵 Music Sync Server running`, {
-    port: PORT,
-    environment,
-    corsOrigins: allowedOrigins,
-    rateLimitMax: isLocalDev ? 1000 : 100,
-    nodeEnv: process.env.NODE_ENV,
-    renderEnv: process.env.RENDER_ENV || 'not-set'
-  });
-  
-  logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logProduction('info', `📡 WebSocket server ready`);
-  logProduction('info', `🔗 Health check: http://localhost:${PORT}/api/health`);
-  
-  if (isDevelopment) {
-    logProduction('info', `📊 Stats endpoint: http://localhost:${PORT}/api/stats`);
+// Connect to database before starting server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDatabase();
+    
+    // Start server
+    server.listen(PORT, () => {
+      const environment = isLocalDev ? 'Local Development' : isRenderDev ? 'Render Development' : 'Production';
+      
+      logProduction('info', `🎵 Music Sync Server running`, {
+        port: PORT,
+        environment,
+        corsOrigins: allowedOrigins,
+        rateLimitMax: isLocalDev ? 1000 : 100,
+        nodeEnv: process.env.NODE_ENV,
+        renderEnv: process.env.RENDER_ENV || 'not-set'
+      });
+      
+      logProduction('info', `🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logProduction('info', `📡 WebSocket server ready`);
+      logProduction('info', `🔗 Health check: http://localhost:${PORT}/api/health`);
+      
+      if (isDevelopment) {
+        logProduction('info', `📊 Stats endpoint: http://localhost:${PORT}/api/stats`);
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
   }
-});
+};
+
+// Start the server
+startServer();
