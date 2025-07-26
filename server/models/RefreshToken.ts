@@ -12,7 +12,7 @@ const RefreshTokenSchema: Schema = new Schema({
   token: {
     type: String,
     required: true,
-    unique: true
+    unique: true // ✅ Keep this
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -39,6 +39,7 @@ const RefreshTokenSchema: Schema = new Schema({
 // Auto-delete expired tokens
 RefreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 RefreshTokenSchema.index({ userId: 1 });
-RefreshTokenSchema.index({ token: 1 });
+// ❌ Remove this duplicate - already created by unique: true above
+// RefreshTokenSchema.index({ token: 1 });
 
 export const RefreshToken = mongoose.model<IRefreshToken>('RefreshToken', RefreshTokenSchema);

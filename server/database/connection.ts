@@ -7,13 +7,11 @@ export const connectDatabase = async (): Promise<void> => {
     console.log('🔌 Attempting to connect to MongoDB...');
     console.log(`📍 Connection string: ${MONGODB_URI.replace(/\/\/.*:.*@/, '//***:***@')}`);
     
-    // ✅ Fixed: Removed invalid properties for current Mongoose version
     const options: mongoose.ConnectOptions = {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       family: 4
-      // ✅ Removed bufferCommands and bufferMaxEntries - not valid in ConnectOptions
     };
 
     await mongoose.connect(MONGODB_URI, options);
@@ -21,7 +19,6 @@ export const connectDatabase = async (): Promise<void> => {
     console.log('✅ Connected to MongoDB successfully');
     console.log(`📊 Database: ${mongoose.connection.name}`);
     console.log(`🌐 Host: ${mongoose.connection.host}`);
-    console.log(`🔗 Ready state: ${mongoose.connection.readyState}`);
     
     // Handle connection events
     mongoose.connection.on('error', (error) => {
@@ -39,27 +36,28 @@ export const connectDatabase = async (): Promise<void> => {
   } catch (error: any) {
     console.error('❌ MongoDB connection failed:', error.message);
     
-    // Specific error handling
-    if (error.name === 'MongooseServerSelectionError') {
-      console.error('🔍 Server Selection Error - possible causes:');
-      console.error('   • Network connectivity issues');
-      console.error('   • Incorrect connection string');
-      console.error('   • IP not whitelisted in MongoDB Atlas');
-      console.error('   • MongoDB Atlas cluster paused/unavailable');
+    // Enhanced error handling for Render deployment
+    if (error.code === 'ENOTFOUND') {
+      console.error('🔍 DNS Resolution failed - Check connection string:');
+      console.error('   • Verify the cluster name in MongoDB Atlas');
+      console.error('   • Ensure connection string is complete');
+      console.error('   • Check if cluster is running (not paused)');
+      console.error('   • Current MONGODB_URI format validation needed');
     }
     
-    console.error('📋 Troubleshooting steps:');
-    console.error('   1. Verify MONGODB_URI environment variable');
-    console.error('   2. Check MongoDB Atlas Network Access settings');
-    console.error('   3. Ensure cluster is running (not paused)');
-    console.error('   4. Test connection with MongoDB Compass');
+    console.error('📋 Render deployment troubleshooting:');
+    console.error('   1. Add MONGODB_URI to Render Environment Variables');
+    console.error('   2. Get correct connection string from MongoDB Atlas');
+    console.error('   3. Ensure Atlas cluster is not paused');
+    console.error('   4. Add 0.0.0.0/0 to Atlas Network Access');
     
+    // ✅ Always exit on production database connection failure
     if (process.env.NODE_ENV === 'production') {
       console.error('🚨 Exiting due to database connection failure in production');
       process.exit(1);
     } else {
       console.warn('⚠️ Continuing without database in development mode');
-      throw error; // Re-throw in development for debugging
+      throw error;
     }
   }
 };

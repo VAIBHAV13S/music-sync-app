@@ -45,7 +45,7 @@ const RoomSchema: Schema = new Schema({
   roomCode: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // ✅ Keep this
     uppercase: true,
     match: /^[A-Z0-9]{4,10}$/
   },
@@ -104,7 +104,8 @@ const RoomSchema: Schema = new Schema({
 
 // Auto-delete rooms after 24 hours of inactivity
 RoomSchema.index({ lastActivity: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
-RoomSchema.index({ roomCode: 1 });
+// ❌ Remove this duplicate - already created by unique: true above
+// RoomSchema.index({ roomCode: 1 });
 RoomSchema.index({ hostId: 1 });
 RoomSchema.index({ createdAt: -1 });
 
