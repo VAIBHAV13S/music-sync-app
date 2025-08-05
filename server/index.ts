@@ -112,12 +112,26 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true
   },
-  pingTimeout: isLocalDev ? 60000 : 30000, // Longer timeout for local dev
-  pingInterval: isLocalDev ? 25000 : 15000, // More frequent pings in production
+  pingTimeout: isLocalDev ? 60000 : 25000, // Shorter timeout for production
+  pingInterval: isLocalDev ? 25000 : 10000, // More frequent pings in production
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
   transports: ['websocket', 'polling'],
-  allowEIO3: true
+  allowEIO3: true,
+  // Add connection state recovery for better reliability
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    skipMiddlewares: true,
+  },
+  // Improve polling for unreliable connections
+  allowRequest: (req, callback) => {
+    // Allow all requests but log them in production
+    if (!isLocalDev) {
+      const origin = req.headers.origin;
+      logProduction('info', `🔌 Socket connection attempt from: ${origin || 'unknown'}`);
+    }
+    callback(null, true);
+  }
 });
 
 // Interfaces
@@ -257,20 +271,38 @@ function leaveRoom(socketId: string, roomCode: string): void {
       });
       logProduction('info', `Host transferred in room ${roomCode}`);
     } else {
+      // Clean up both memory and database
       rooms.delete(roomCode);
+      
+      // Clean up database room async (don't wait for it)
+      Room.deleteOne({ roomCode }).catch(error => {
+        logProduction('error', `Failed to delete room ${roomCode} from database:`, error);
+      });
+      
       logProduction('info', `Room deleted: ${roomCode}`);
     }
+  } else if (room.participants.length === 0) {
+    // Clean up empty room
+    rooms.delete(roomCode);
+    
+    // Clean up database room async
+    Room.deleteOne({ roomCode }).catch(error => {
+      logProduction('error', `Failed to delete empty room ${roomCode} from database:`, error);
+    });
+    
+    logProduction('info', `Empty room deleted: ${roomCode}`);
   }
 
   userRooms.delete(socketId);
 }
 
 // Cleanup inactive rooms
-setInterval(() => {
+setInterval(async () => {
   const now = Date.now();
   const inactivityTimeout = 2 * 60 * 60 * 1000; // 2 hours
   const emptyRoomTimeout = 30 * 60 * 1000; // 30 minutes
 
+  // Clean up memory rooms
   for (const [roomCode, room] of rooms.entries()) {
     const shouldDelete = 
       (room.participants.length === 0 && now - room.lastActivity > emptyRoomTimeout) ||
@@ -278,8 +310,22 @@ setInterval(() => {
 
     if (shouldDelete) {
       rooms.delete(roomCode);
-      logProduction('info', `🧹 Cleaned up room: ${roomCode}`);
+      logProduction('info', `🧹 Cleaned up memory room: ${roomCode}`);
     }
+  }
+
+  // Clean up stale database rooms
+  try {
+    const cutoffTime = new Date(now - inactivityTimeout);
+    const result = await Room.deleteMany({
+      lastActivity: { $lt: cutoffTime }
+    });
+    
+    if (result.deletedCount > 0) {
+      logProduction('info', `🧹 Cleaned up ${result.deletedCount} stale database rooms`);
+    }
+  } catch (error) {
+    logProduction('error', 'Database cleanup error:', error);
   }
 }, 10 * 60 * 1000); // Check every 10 minutes
 
@@ -294,6 +340,75 @@ io.on('connection', (socket) => {
     next();
   });
 
+  // Room restoration handler for reconnections
+  socket.on('restore-room', async (data, callback) => {
+    try {
+      const { roomCode } = data;
+      const user = socket.data.user;
+
+      if (!validateRoomCode(roomCode)) {
+        callback({ success: false, error: 'Invalid room code format' });
+        return;
+      }
+
+      const dbRoom = await Room.findOne({ roomCode });
+      if (!dbRoom) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+
+      // Restore room to memory if not present
+      let memoryRoom = rooms.get(roomCode);
+      if (!memoryRoom) {
+        memoryRoom = {
+          roomCode,
+          hostId: dbRoom.hostId,
+          hostUser: dbRoom.hostUser,
+          participants: [],
+          createdAt: new Date(dbRoom.createdAt).getTime(),
+          lastActivity: Date.now(),
+          isPrivate: dbRoom.isPrivate,
+          password: dbRoom.password,
+          currentTrack: undefined
+        };
+        rooms.set(roomCode, memoryRoom);
+        logProduction('info', `🔄 Restored room ${roomCode} to memory from database`);
+      }
+
+      // Update user's participation
+      const existingParticipant = memoryRoom.participants.find(p => p.userId === user.id);
+      if (!existingParticipant) {
+        memoryRoom.participants.push({
+          socketId: socket.id,
+          userId: user.id,
+          username: user.username,
+          avatar: user.avatar
+        });
+      } else {
+        // Update socket ID for existing participant
+        existingParticipant.socketId = socket.id;
+      }
+
+      userRooms.set(socket.id, roomCode);
+      socket.join(roomCode);
+      memoryRoom.lastActivity = Date.now();
+
+      logProduction('info', `🔄 ${user.username} restored connection to room: ${roomCode}`);
+      callback({ 
+        success: true, 
+        room: { 
+          ...dbRoom.toObject(), 
+          password: undefined,
+          currentTrack: memoryRoom.currentTrack 
+        } 
+      });
+
+    } catch (error) {
+      logProduction('error', 'Restore room error:', error);
+      callback({ success: false, error: 'Server error' });
+    }
+  });
+
   // Create room handler
   socket.on('create-room', async (data, callback) => {
     try {
@@ -305,15 +420,29 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Check if room already exists in database
-      const existingRoom = await Room.findOne({ roomCode });
-      if (existingRoom) {
-        callback({ success: false, error: 'Room already exists' });
-        return;
+      // Check if room already exists in database OR in-memory
+      const existingDbRoom = await Room.findOne({ roomCode });
+      const existingMemoryRoom = rooms.get(roomCode);
+      
+      if (existingDbRoom || existingMemoryRoom) {
+        // Try to clean up stale database room if no active participants
+        if (existingDbRoom && !existingMemoryRoom) {
+          const timeSinceLastActivity = Date.now() - new Date(existingDbRoom.lastActivity).getTime();
+          if (timeSinceLastActivity > 30 * 60 * 1000) { // 30 minutes
+            await Room.deleteOne({ roomCode });
+            logProduction('info', `🧹 Cleaned up stale database room: ${roomCode}`);
+          } else {
+            callback({ success: false, error: 'Room already exists' });
+            return;
+          }
+        } else {
+          callback({ success: false, error: 'Room already exists' });
+          return;
+        }
       }
 
       // Create room in database
-      const room = new Room({
+      const dbRoom = new Room({
         roomCode,
         hostId: socket.id,
         hostUser: { id: user.id, username: user.username, avatar: user.avatar },
@@ -322,12 +451,26 @@ io.on('connection', (socket) => {
         password: password || undefined
       });
 
-      await room.save();
+      await dbRoom.save();
+
+      // Create room in memory for active session management
+      const memoryRoom: Room = {
+        roomCode,
+        hostId: socket.id,
+        hostUser: { id: user.id, username: user.username, avatar: user.avatar },
+        participants: [{ socketId: socket.id, userId: user.id, username: user.username, avatar: user.avatar }],
+        createdAt: Date.now(),
+        lastActivity: Date.now(),
+        isPrivate: isPrivate || false,
+        password: password || undefined
+      };
+
+      rooms.set(roomCode, memoryRoom);
       socket.join(roomCode);
       userRooms.set(socket.id, roomCode);
 
       logProduction('info', `🏠 Room created: ${roomCode} by ${user.username} (${user.id})`);
-      callback({ success: true, room: { ...room.toObject(), password: undefined } });
+      callback({ success: true, room: { ...dbRoom.toObject(), password: undefined } });
 
     } catch (error) {
       logProduction('error', 'Create room error:', error);
@@ -346,22 +489,52 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const room = await Room.findOne({ roomCode });
-      if (!room) {
+      const dbRoom = await Room.findOne({ roomCode });
+      if (!dbRoom) {
         callback({ success: false, error: 'Room not found' });
         return;
       }
 
       // Check password for private rooms
-      if (room.isPrivate && room.password && room.password !== password) {
+      if (dbRoom.isPrivate && dbRoom.password && dbRoom.password !== password) {
         callback({ success: false, error: 'Incorrect room password' });
         return;
       }
 
-      // Check if user already in room
-      const existingParticipant = room.participants.find(p => p.userId === user.id);
-      if (!existingParticipant) {
-        room.participants.push({ 
+      // Get or create memory room
+      let memoryRoom = rooms.get(roomCode);
+      if (!memoryRoom) {
+        // Restore room to memory from database
+        memoryRoom = {
+          roomCode,
+          hostId: dbRoom.hostId,
+          hostUser: dbRoom.hostUser,
+          participants: [],
+          createdAt: new Date(dbRoom.createdAt).getTime(),
+          lastActivity: Date.now(),
+          isPrivate: dbRoom.isPrivate,
+          password: dbRoom.password,
+          currentTrack: undefined
+        };
+        rooms.set(roomCode, memoryRoom);
+        logProduction('info', `🔄 Restored room ${roomCode} to memory`);
+      }
+
+      // Check if user already in room (memory)
+      const existingMemoryParticipant = memoryRoom.participants.find(p => p.userId === user.id);
+      if (!existingMemoryParticipant) {
+        memoryRoom.participants.push({ 
+          socketId: socket.id, 
+          userId: user.id, 
+          username: user.username, 
+          avatar: user.avatar
+        });
+      }
+
+      // Update database
+      const existingDbParticipant = dbRoom.participants.find(p => p.userId === user.id);
+      if (!existingDbParticipant) {
+        dbRoom.participants.push({ 
           socketId: socket.id, 
           userId: user.id, 
           username: user.username, 
@@ -370,14 +543,15 @@ io.on('connection', (socket) => {
         });
         
         // Update peak participants
-        if (room.participants.length > room.stats.peakParticipants) {
-          room.stats.peakParticipants = room.participants.length;
+        if (dbRoom.participants.length > dbRoom.stats.peakParticipants) {
+          dbRoom.stats.peakParticipants = dbRoom.participants.length;
         }
       }
 
-      room.lastActivity = new Date();
-      await room.save();
+      dbRoom.lastActivity = new Date();
+      await dbRoom.save();
 
+      memoryRoom.lastActivity = Date.now();
       userRooms.set(socket.id, roomCode);
       socket.join(roomCode);
 
@@ -385,11 +559,11 @@ io.on('connection', (socket) => {
       socket.to(roomCode).emit('user-joined', {
         user: { id: user.id, username: user.username, avatar: user.avatar },
         roomCode,
-        participantCount: room.participants.length
+        participantCount: memoryRoom.participants.length
       });
 
-      logProduction('info', `👥 ${user.username} joined room: ${roomCode} (${room.participants.length} total)`);
-      callback({ success: true, room: { ...room.toObject(), password: undefined } });
+      logProduction('info', `👥 ${user.username} joined room: ${roomCode} (${memoryRoom.participants.length} total)`);
+      callback({ success: true, room: { ...dbRoom.toObject(), password: undefined } });
 
     } catch (error) {
       logProduction('error', 'Join room error:', error);
@@ -453,52 +627,129 @@ io.on('connection', (socket) => {
   });
 
   // Disconnect handler
-  socket.on('disconnect', (reason) => {
-    logProduction('info', `👤 User disconnected: ${socket.id} (${reason})`);
-    
+  socket.on('disconnect', async (reason) => {
+    const user = socket.data.user;
     const roomCode = userRooms.get(socket.id);
+    
+    logProduction('info', `👤 User disconnected: ${user?.username || 'unknown'} (${socket.id}) - ${reason}`);
+    
     if (roomCode) {
-      leaveRoom(socket.id, roomCode);
+      try {
+        // Update database room to remove this socket
+        await Room.updateOne(
+          { roomCode },
+          { 
+            $pull: { participants: { socketId: socket.id } },
+            lastActivity: new Date()
+          }
+        );
+        
+        leaveRoom(socket.id, roomCode);
+        logProduction('info', `🧹 Cleaned up user from room ${roomCode} in database`);
+      } catch (error) {
+        logProduction('error', `Failed to clean up user from room ${roomCode}:`, error);
+        // Still call leaveRoom for memory cleanup
+        leaveRoom(socket.id, roomCode);
+      }
     }
     
     userLastActivity.delete(socket.id);
   });
-});
 
-// API Routes
-app.get('/api/health', (_req: Request, res: Response): void => {
-  res.json({ 
-    status: 'ok',
-    uptime: process.uptime(),
-    rooms: rooms.size,
-    connections: io.engine.clientsCount,
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
+  // Handle connection errors
+  socket.on('connect_error', (error) => {
+    logProduction('error', `Connection error for ${socket.id}:`, error.message);
+  });
+
+  socket.on('error', (error) => {
+    logProduction('error', `Socket error for ${socket.id}:`, error.message);
   });
 });
 
-app.get('/api/stats', (_req: Request, res: Response): void => {
+// API Routes
+app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    // Check database connection
+    const dbConnected = mongoose.connection.readyState === 1;
+    
+    // Check room synchronization
+    const memoryRoomCount = rooms.size;
+    const dbRoomCount = await Room.countDocuments();
+    
+    res.json({ 
+      status: 'ok',
+      uptime: process.uptime(),
+      database: {
+        connected: dbConnected,
+        roomCount: dbRoomCount
+      },
+      memory: {
+        roomCount: memoryRoomCount,
+        connections: io.engine.clientsCount,
+        userRooms: userRooms.size
+      },
+      environment: isLocalDev ? 'local-dev' : isRenderDev ? 'render-dev' : 'production',
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || '1.0.0'
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.get('/api/stats', async (_req: Request, res: Response): Promise<void> => {
   if (!isDevelopment) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
 
-  const roomStats = Array.from(rooms.values()).map(room => ({
-    roomCode: room.roomCode,
-    participantCount: room.participants.length,
-    hasCurrentTrack: !!room.currentTrack,
-    lastActivity: new Date(room.lastActivity).toISOString()
-  }));
+  try {
+    const memoryRoomStats = Array.from(rooms.values()).map(room => ({
+      roomCode: room.roomCode,
+      participantCount: room.participants.length,
+      hasCurrentTrack: !!room.currentTrack,
+      lastActivity: new Date(room.lastActivity).toISOString(),
+      source: 'memory'
+    }));
 
-  res.json({
-    totalRooms: rooms.size,
-    totalConnections: io.engine.clientsCount,
-    rooms: roomStats
-  });
+    const dbRoomCount = await Room.countDocuments();
+    const dbRooms = await Room.find({}, 'roomCode participants lastActivity').limit(10);
+    
+    const dbRoomStats = dbRooms.map(room => ({
+      roomCode: room.roomCode,
+      participantCount: room.participants.length,
+      lastActivity: room.lastActivity.toISOString(),
+      source: 'database'
+    }));
+
+    res.json({
+      memory: {
+        totalRooms: rooms.size,
+        totalConnections: io.engine.clientsCount,
+        userRoomMappings: userRooms.size,
+        rooms: memoryRoomStats
+      },
+      database: {
+        totalRooms: dbRoomCount,
+        recentRooms: dbRoomStats
+      },
+      synchronization: {
+        memoryRooms: rooms.size,
+        databaseRooms: dbRoomCount,
+        difference: Math.abs(rooms.size - dbRoomCount)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
 });
 
 // API route for room info
-app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
+app.get('/api/rooms/:roomCode', async (req: Request, res: Response): Promise<void> => {
   try {
     const { roomCode } = req.params;
     
@@ -507,23 +758,49 @@ app.get('/api/rooms/:roomCode', (req: Request, res: Response): void => {
       return;
     }
 
-    const room = rooms.get(roomCode);
-    if (!room) {
-      res.status(404).json({ error: 'Room not found' });
+    // Check memory first (active rooms)
+    const memoryRoom = rooms.get(roomCode);
+    if (memoryRoom) {
+      res.json({
+        success: true,
+        room: {
+          roomCode: memoryRoom.roomCode,
+          participantCount: memoryRoom.participants.length,
+          isActive: true,
+          createdAt: memoryRoom.createdAt,
+          lastActivity: memoryRoom.lastActivity
+        }
+      });
       return;
     }
 
-    // Return room info without sensitive data
-    res.json({
-      success: true,
-      room: {
-        roomCode: room.roomCode,
-        participantCount: room.participants.length,
-        isActive: true,
-        createdAt: room.createdAt,
-        lastActivity: room.lastActivity
+    // Check database for inactive rooms
+    const dbRoom = await Room.findOne({ roomCode });
+    if (dbRoom) {
+      const timeSinceLastActivity = Date.now() - new Date(dbRoom.lastActivity).getTime();
+      const isStale = timeSinceLastActivity > 30 * 60 * 1000; // 30 minutes
+      
+      if (isStale) {
+        // Clean up stale room
+        await Room.deleteOne({ roomCode });
+        res.status(404).json({ error: 'Room not found' });
+        return;
       }
-    });
+
+      res.json({
+        success: true,
+        room: {
+          roomCode: dbRoom.roomCode,
+          participantCount: 0, // No active participants
+          isActive: false,
+          createdAt: new Date(dbRoom.createdAt).getTime(),
+          lastActivity: new Date(dbRoom.lastActivity).getTime()
+        }
+      });
+      return;
+    }
+
+    res.status(404).json({ error: 'Room not found' });
   } catch (error) {
     logProduction('error', 'Room check error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -716,14 +993,17 @@ io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   
   if (!token) {
+    logProduction('warn', '🚫 Socket connection denied: No token provided');
     return next(new Error('Authentication error: No token provided'));
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     socket.data.user = decoded;
+    logProduction('info', `✅ Socket authenticated: ${decoded.username} (${decoded.id})`);
     next();
   } catch (err) {
+    logProduction('warn', `🚫 Socket connection denied: Invalid token for ${socket.id}`);
     next(new Error('Authentication error: Invalid token'));
   }
 });
@@ -804,6 +1084,25 @@ const startServer = async () => {
   try {
     // Connect to MongoDB
     await connectDatabase();
+    
+    // Clean up stale rooms on startup
+    try {
+      const cutoffTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+      const result = await Room.deleteMany({
+        lastActivity: { $lt: cutoffTime }
+      });
+      
+      if (result.deletedCount > 0) {
+        logProduction('info', `🧹 Startup cleanup: Removed ${result.deletedCount} stale rooms from database`);
+      }
+      
+      // Log remaining rooms
+      const remainingRooms = await Room.countDocuments();
+      logProduction('info', `📊 Database has ${remainingRooms} active rooms after cleanup`);
+      
+    } catch (cleanupError) {
+      logProduction('error', 'Startup cleanup error:', cleanupError);
+    }
     
     // Start server
     server.listen(PORT, () => {
