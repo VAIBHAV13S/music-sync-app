@@ -19,8 +19,18 @@ function Home({ onShowAuth }: HomeProps) {
     setIsJoining(true);
     
     try {
-      // ✅ Fix: Remove trailing slash
-      const API_BASE_URL = (import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3001').replace(/\/$/, '');
+      // Auto-detect server URL
+      const getServerUrl = () => {
+        if (import.meta.env.VITE_SOCKET_SERVER_URL) {
+          return import.meta.env.VITE_SOCKET_SERVER_URL;
+        }
+        if (import.meta.env.PROD || window.location.hostname.includes('vercel.app')) {
+          return 'https://music-sync-server-nz0r.onrender.com';
+        }
+        return 'http://localhost:3001';
+      };
+
+      const API_BASE_URL = getServerUrl().replace(/\/$/, '');
       
       // Check if room exists before navigating
       const response = await fetch(`${API_BASE_URL}/api/rooms/${quickJoinCode}`);
@@ -271,6 +281,17 @@ function Home({ onShowAuth }: HomeProps) {
         {/* Footer */}
         <footer className="text-center py-8 text-gray-400">
           <p>&copy; 2025 MusicSync. Bringing people together through music.</p>
+          {/* Debug link - only shows in development */}
+          {import.meta.env.DEV && (
+            <div className="mt-4">
+              <a 
+                href="/debug" 
+                className="text-xs text-blue-400 hover:text-blue-300 underline"
+              >
+                🔧 Debug Connection
+              </a>
+            </div>
+          )}
         </footer>
       </div>
     </div>

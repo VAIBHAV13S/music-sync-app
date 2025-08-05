@@ -100,7 +100,18 @@ function JoinRoom() {
     setIsJoining(true);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_SOCKET_SERVER_URL}/api/rooms/${roomCode}`);
+      // Auto-detect server URL
+      const getServerUrl = () => {
+        if (import.meta.env.VITE_SOCKET_SERVER_URL) {
+          return import.meta.env.VITE_SOCKET_SERVER_URL;
+        }
+        if (import.meta.env.PROD || window.location.hostname.includes('vercel.app')) {
+          return 'https://music-sync-server-nz0r.onrender.com';
+        }
+        return 'http://localhost:3001';
+      };
+
+      const response = await fetch(`${getServerUrl()}/api/rooms/${roomCode}`);
       
       if (response.ok) {
         setJoined(true);

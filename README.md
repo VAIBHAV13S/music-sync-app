@@ -1,4 +1,59 @@
-# React + TypeScript + Vite
+# MusicSync - Real-time Music Streaming App
+
+A collaborative music streaming application that allows users to create rooms and listen to music together in real-time.
+
+## 🚀 Features
+
+- **Real-time synchronization** - Listen to music together with perfect sync
+- **Room management** - Create public or private rooms
+- **User authentication** - Secure login and registration
+- **YouTube integration** - Search and play YouTube videos
+- **Cross-platform** - Works on desktop and mobile
+
+## 🛠️ Setup & Development
+
+### Environment Variables
+
+Create a `.env.local` file:
+```bash
+# For local development
+VITE_SOCKET_SERVER_URL=http://localhost:3001
+
+# For production deployment
+VITE_SOCKET_SERVER_URL=https://music-sync-server-nz0r.onrender.com
+```
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## 🌐 Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions and troubleshooting.
+
+### Quick Vercel Deployment
+
+1. Set environment variable in Vercel dashboard:
+   - `VITE_SOCKET_SERVER_URL=https://music-sync-server-nz0r.onrender.com`
+2. Deploy from GitHub
+3. Visit your deployed app
+
+## 🔧 Debug Tools
+
+In development, visit `/debug` to access connection debugging tools.
+
+---
+
+## Technical Setup (Original Vite Template)
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -78,8 +78,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Fix: Remove trailing slash if present
-  const API_BASE_URL = (import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3001').replace(/\/$/, '');
+  // Auto-detect server URL
+  const getServerUrl = () => {
+    if (import.meta.env.VITE_SOCKET_SERVER_URL) {
+      return import.meta.env.VITE_SOCKET_SERVER_URL;
+    }
+    if (import.meta.env.PROD || window.location.hostname.includes('vercel.app')) {
+      return 'https://music-sync-server-nz0r.onrender.com';
+    }
+    return 'http://localhost:3001';
+  };
+
+  const API_BASE_URL = getServerUrl().replace(/\/$/, '');
 
   const clearError = useCallback(() => {
     setError(null);

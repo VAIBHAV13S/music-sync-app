@@ -4,6 +4,7 @@ import AuthModal from './components/AuthModal';
 import HomePage from './pages/Home';
 import HostRoom from './pages/HostRoom';
 import JoinRoom from './pages/JoinRoom';
+import ConnectionDebug from './components/ConnectionDebug';
 import { useState } from 'react';
 import './index.css';
 
@@ -55,6 +56,13 @@ function App() {
             )
           }
         />
+        {/* Debug route - only accessible in development */}
+        {import.meta.env.DEV && (
+          <Route
+            path="/debug"
+            element={<ConnectionDebug />}
+          />
+        )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

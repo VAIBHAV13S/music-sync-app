@@ -30,13 +30,28 @@ class RealSocketService {
   private socket: Socket | null = null;
   private _connected = false;
   private _connecting = false;
-  private serverUrl = import.meta.env.VITE_SOCKET_SERVER_URL || 'https://music-sync-app-production.up.railway.app';
+  private serverUrl = this.getServerUrl();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private isProduction = import.meta.env.PROD;
   private currentRoomCode: string | null = null;
   private eventListeners = new Map<string, Set<EventCallback>>();
   private connectionPromise: Promise<void> | null = null;
+
+  private getServerUrl(): string {
+    // Priority: Environment variable > Production detection > Development fallback
+    if (import.meta.env.VITE_SOCKET_SERVER_URL) {
+      return import.meta.env.VITE_SOCKET_SERVER_URL;
+    }
+    
+    // Detect if we're on Vercel production
+    if (import.meta.env.PROD || window.location.hostname.includes('vercel.app')) {
+      return 'https://music-sync-server-nz0r.onrender.com';
+    }
+    
+    // Development fallback
+    return 'http://localhost:3001';
+  }
 
   private log(level: 'info' | 'error' | 'warn', message: string, data?: any): void {
     if (this.isProduction && level === 'info') return;
@@ -89,6 +104,11 @@ class RealSocketService {
     this.socket.on('connect_error', (error: Error) => {
       this.log('error', 'Connection error', error.message);
       this._connected = false;
+      
+      // If connection fails and we detect we might be on the wrong URL, try alternative
+      if (error.message.includes('timeout') || error.message.includes('connection')) {
+        this.log('warn', `Connection failed to ${this.serverUrl}, checking alternatives...`);
+      }
     });
 
     // Set up forwarding for tracked events
@@ -168,7 +188,9 @@ class RealSocketService {
 
   private performConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.log('info', `Connecting to: ${this.serverUrl}`);
+      this.log('info', `🔌 Attempting to connect to: ${this.serverUrl}`);
+      this.log('info', `📊 Environment: ${import.meta.env.PROD ? 'production' : 'development'}`);
+      this.log('info', `🌐 Current location: ${window.location.hostname}`);
       
       // Disconnect any existing socket
       if (this.socket) {
@@ -436,7 +458,28 @@ class RealSocketService {
       serverUrl: this.serverUrl,
       socketId: this.socket?.id || null,
       activeListeners: Array.from(this.eventListeners.keys()),
+      environment: {
+        isProd: import.meta.env.PROD,
+        hostname: window.location.hostname,
+        envVar: import.meta.env.VITE_SOCKET_SERVER_URL || 'not-set'
+      }
     };
+  }
+
+  // Method to test connection to server
+  async testConnection(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.serverUrl}/api/health`);
+      const healthy = response.ok;
+      this.log('info', `🏥 Server health check: ${healthy ? 'HEALTHY' : 'UNHEALTHY'}`, {
+        status: response.status,
+        url: this.serverUrl
+      });
+      return healthy;
+    } catch (error) {
+      this.log('error', '🏥 Server health check failed', error);
+      return false;
+    }
   }
 }
 

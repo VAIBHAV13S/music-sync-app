@@ -1,4 +1,12 @@
 {
+  "build": {
+    "env": {
+      "VITE_SOCKET_SERVER_URL": "https://music-sync-server-nz0r.onrender.com"
+    }
+  },
+  "env": {
+    "VITE_SOCKET_SERVER_URL": "https://music-sync-server-nz0r.onrender.com"
+  },
   "rewrites": [
     {
       "source": "/(.*)",
