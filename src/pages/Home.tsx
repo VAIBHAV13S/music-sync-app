@@ -66,9 +66,9 @@ function Home({ onShowAuth }: HomeProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 relative">
+    <div className="min-h-screen bg-gray-900 relative">
       {/* Professional Header */}
-      <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200/20 sticky top-0 z-50">
+      <header className="bg-gray-800/90 backdrop-blur-lg border-b border-gray-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -78,7 +78,7 @@ function Home({ onShowAuth }: HomeProps) {
                     <path d="M12 3l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-.01L12 3z"/>
                   </svg>
                 </div>
-                <h1 className="text-xl font-semibold text-gray-900">MusicSync</h1>
+                <h1 className="text-xl font-semibold text-white">MusicSync</h1>
               </div>
             </div>
             
@@ -91,19 +91,19 @@ function Home({ onShowAuth }: HomeProps) {
                     </span>
                   </div>
                   <div className="hidden sm:block">
-                    <p className="text-sm font-medium text-gray-900">{user?.username}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
+                    <p className="text-sm font-medium text-white">{user?.username}</p>
+                    <p className="text-xs text-gray-400">{user?.email}</p>
                   </div>
                 </div>
                 
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="inline-flex items-center px-3 py-2 border border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
                   {isLoggingOut ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -132,22 +132,22 @@ function Home({ onShowAuth }: HomeProps) {
           <div className="space-y-12">
             {/* Hero Section */}
             <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl md:text-6xl">
+              <h1 className="text-4xl font-bold text-white sm:text-5xl md:text-6xl">
                 Listen to music
-                <span className="block text-blue-600">together, anywhere</span>
+                <span className="block text-blue-400">together, anywhere</span>
               </h1>
-              <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+              <p className="mt-3 max-w-md mx-auto text-base text-gray-400 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
                 Create synchronized music rooms and enjoy your favorite songs with friends in real-time.
               </p>
             </div>
 
             {/* Quick Join Section */}
             <div className="max-w-md mx-auto">
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Join a room</h3>
+              <div className="bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-700">
+                <h3 className="text-lg font-medium text-white mb-4">Join a room</h3>
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="room-code" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="room-code" className="block text-sm font-medium text-gray-300 mb-2">
                       Room code
                     </label>
                     <input
@@ -157,7 +157,7 @@ function Home({ onShowAuth }: HomeProps) {
                       value={quickJoinCode}
                       onChange={(e) => setQuickJoinCode(e.target.value.toUpperCase())}
                       onKeyPress={handleKeyPress}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="block w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       maxLength={10}
                     />
                   </div>
@@ -184,19 +184,19 @@ function Home({ onShowAuth }: HomeProps) {
 
             {/* Action Cards */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-2 max-w-4xl mx-auto">
-              <div className="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+              <div className="bg-gray-800 overflow-hidden shadow-lg rounded-xl border border-gray-700">
                 <div className="p-6">
                   <div className="flex items-center">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                       </div>
                     </div>
                     <div className="ml-4">
-                      <h3 className="text-lg font-medium text-gray-900">Host a Room</h3>
-                      <p className="text-sm text-gray-500">Create a new music session and invite others</p>
+                      <h3 className="text-lg font-medium text-white">Host a Room</h3>
+                      <p className="text-sm text-gray-400">Create a new music session and invite others</p>
                     </div>
                   </div>
                   <div className="mt-6">
@@ -210,19 +210,19 @@ function Home({ onShowAuth }: HomeProps) {
                 </div>
               </div>
 
-              <div className="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+              <div className="bg-gray-800 overflow-hidden shadow-lg rounded-xl border border-gray-700">
                 <div className="p-6">
                   <div className="flex items-center">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                       </div>
                     </div>
                     <div className="ml-4">
-                      <h3 className="text-lg font-medium text-gray-900">Browse Rooms</h3>
-                      <p className="text-sm text-gray-500">Find and join public music sessions</p>
+                      <h3 className="text-lg font-medium text-white">Browse Rooms</h3>
+                      <p className="text-sm text-gray-400">Find and join public music sessions</p>
                     </div>
                   </div>
                   <div className="mt-6">
@@ -240,17 +240,17 @@ function Home({ onShowAuth }: HomeProps) {
         ) : (
           <div className="text-center">
             <div className="max-w-3xl mx-auto">
-              <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl md:text-6xl">
+              <h1 className="text-4xl font-bold text-white sm:text-5xl md:text-6xl">
                 Listen to music
-                <span className="block text-blue-600">together, anywhere</span>
+                <span className="block text-blue-400">together, anywhere</span>
               </h1>
-              <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+              <p className="mt-3 max-w-md mx-auto text-base text-gray-300 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
                 Create synchronized music rooms and enjoy your favorite songs with friends in real-time. Sign in to get started.
               </p>
               <div className="mt-8">
                 <button
                   onClick={onShowAuth}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                 >
                   Get Started
                 </button>
@@ -261,9 +261,9 @@ function Home({ onShowAuth }: HomeProps) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200">
+      <footer className="bg-gray-800 border-t border-gray-700">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-gray-400">
             &copy; 2025 MusicSync. Bringing people together through music.
           </p>
           {/* Debug link - only shows in development */}
@@ -271,7 +271,7 @@ function Home({ onShowAuth }: HomeProps) {
             <div className="text-center mt-2">
               <a 
                 href="/debug" 
-                className="text-xs text-blue-500 hover:text-blue-700 underline"
+                className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors duration-200"
               >
                 🔧 Debug Connection
               </a>

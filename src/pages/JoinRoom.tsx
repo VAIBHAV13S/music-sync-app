@@ -62,10 +62,10 @@ function JoinRoom() {
   });
 
   const getConnectionStatus = () => {
-    if (!connected) return { status: 'Connecting...', color: 'text-yellow-600', bgColor: 'bg-yellow-100' };
-    if (connectionQuality === 'excellent') return { status: 'Excellent', color: 'text-green-600', bgColor: 'bg-green-100' };
-    if (connectionQuality === 'good') return { status: 'Good', color: 'text-blue-600', bgColor: 'bg-blue-100' };
-    return { status: 'Poor', color: 'text-red-600', bgColor: 'bg-red-100' };
+    if (!connected) return { status: 'Connecting...', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20' };
+    if (connectionQuality === 'excellent') return { status: 'Excellent', color: 'text-green-400', bgColor: 'bg-green-900/20' };
+    if (connectionQuality === 'good') return { status: 'Good', color: 'text-blue-400', bgColor: 'bg-blue-900/20' };
+    return { status: 'Poor', color: 'text-red-400', bgColor: 'bg-red-900/20' };
   };
 
   const formatDuration = (seconds: number) => {
@@ -134,22 +134,22 @@ function JoinRoom() {
   // Join Room Form (Before Joining)
   if (!joined) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-900">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200">
+        <header className="bg-gray-800 shadow-sm border-b border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => navigate('/')}
-                  className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
+                  className="inline-flex items-center text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                   Back to Home
                 </button>
-                <div className="h-6 w-px bg-gray-300"></div>
+                <div className="h-6 w-px bg-gray-600"></div>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,8 +157,8 @@ function JoinRoom() {
                     </svg>
                   </div>
                   <div>
-                    <h1 className="text-lg font-semibold text-gray-900">Join a Room</h1>
-                    <p className="text-sm text-gray-500">Enter a room code to join a music session</p>
+                    <h1 className="text-lg font-semibold text-white">Join a Room</h1>
+                    <p className="text-sm text-gray-400">Enter a room code to join a music session</p>
                   </div>
                 </div>
               </div>
@@ -168,20 +168,20 @@ function JoinRoom() {
 
         {/* Main Content */}
         <div className="max-w-md mx-auto px-4 py-12">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-8">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2">Join Music Session</h2>
-              <p className="text-gray-600">Enter the room code shared by your host</p>
+              <h2 className="text-2xl font-semibold text-white mb-2">Join Music Session</h2>
+              <p className="text-gray-300">Enter the room code shared by your host</p>
             </div>
 
             <div className="space-y-6">
               <div>
-                <label htmlFor="roomCode" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="roomCode" className="block text-sm font-medium text-gray-300 mb-2">
                   Room Code
                 </label>
                 <input
@@ -191,7 +191,7 @@ function JoinRoom() {
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                   onKeyPress={handleKeyPress}
                   placeholder="Enter room code (e.g., ABC123)"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono tracking-wider uppercase"
+                  className="w-full px-4 py-3 border border-gray-600 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono tracking-wider uppercase placeholder-gray-400"
                   maxLength={6}
                   disabled={isJoining}
                 />
@@ -200,7 +200,7 @@ function JoinRoom() {
               <button
                 onClick={handleJoinRoom}
                 disabled={!roomCode.trim() || isJoining}
-                className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               >
                 {isJoining ? (
                   <>
@@ -221,14 +221,14 @@ function JoinRoom() {
               </button>
             </div>
 
-            <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+            <div className="mt-8 p-4 bg-blue-900/20 rounded-lg">
               <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
-                  <p className="text-sm font-medium text-blue-900">How to join</p>
-                  <p className="text-sm text-blue-800 mt-1">
+                  <p className="text-sm font-medium text-blue-300">How to join</p>
+                  <p className="text-sm text-blue-200 mt-1">
                     Ask the host for their room code and enter it above. You'll be able to listen to music together in real-time.
                   </p>
                 </div>
@@ -242,22 +242,22 @@ function JoinRoom() {
 
   // Participant View (After Joining)
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-gray-800 shadow-sm border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
               <button
                 onClick={handleLeaveRoom}
-                className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700"
+                className="inline-flex items-center text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
                 Leave Room
               </button>
-              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="h-6 w-px bg-gray-600"></div>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -265,8 +265,8 @@ function JoinRoom() {
                   </svg>
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold text-gray-900">Room {roomCode}</h1>
-                  <p className="text-sm text-gray-500">Listening together</p>
+                  <h1 className="text-lg font-semibold text-white">Room {roomCode}</h1>
+                  <p className="text-sm text-gray-400">Listening together</p>
                 </div>
               </div>
             </div>
@@ -327,27 +327,27 @@ function JoinRoom() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Session Stats */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Session Info</h3>
+            <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
+              <h3 className="text-lg font-medium text-white mb-4">Session Info</h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Room Code</span>
-                  <span className="text-sm font-mono font-semibold text-gray-900">{roomCode}</span>
+                  <span className="text-sm text-gray-400">Room Code</span>
+                  <span className="text-sm font-mono font-semibold text-white">{roomCode}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Participants</span>
-                  <span className="text-lg font-semibold text-gray-900">{participantCount}</span>
+                  <span className="text-sm text-gray-400">Participants</span>
+                  <span className="text-lg font-semibold text-white">{participantCount}</span>
                 </div>
                 {sessionStartTime && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Session time</span>
-                    <span className="text-lg font-semibold text-gray-900">
+                    <span className="text-sm text-gray-400">Session time</span>
+                    <span className="text-lg font-semibold text-white">
                       {formatDuration(Math.floor((Date.now() - sessionStartTime.getTime()) / 1000))}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Connection</span>
+                  <span className="text-sm text-gray-400">Connection</span>
                   <span className={`text-sm font-medium ${connectionStatus.color}`}>
                     {connectionStatus.status}
                   </span>
@@ -356,28 +356,28 @@ function JoinRoom() {
             </div>
 
             {/* Instructions */}
-            <div className="bg-blue-50 rounded-xl border border-blue-200 p-6">
-              <h3 className="text-lg font-medium text-blue-900 mb-3">Listening Mode</h3>
-              <div className="space-y-3 text-sm text-blue-800">
+            <div className="bg-blue-900/20 rounded-xl border border-blue-700/50 p-6">
+              <h3 className="text-lg font-medium text-blue-300 mb-3">Listening Mode</h3>
+              <div className="space-y-3 text-sm text-blue-200">
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="flex-shrink-0 w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <p>You're connected to the room and will automatically sync with the host's music</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="flex-shrink-0 w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <p>When the host plays, pauses, or seeks, your player will automatically follow</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="flex-shrink-0 w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </div>
