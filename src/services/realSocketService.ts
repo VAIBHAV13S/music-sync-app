@@ -191,6 +191,7 @@ class RealSocketService {
       this.log('info', `🔌 Attempting to connect to: ${this.serverUrl}`);
       this.log('info', `📊 Environment: ${import.meta.env.PROD ? 'production' : 'development'}`);
       this.log('info', `🌐 Current location: ${window.location.hostname}`);
+      this.log('info', `🔧 Environment variable: ${import.meta.env.VITE_SOCKET_SERVER_URL || 'NOT SET'}`);
       
       // Disconnect any existing socket
       if (this.socket) {
