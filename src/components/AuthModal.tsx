@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, User, Mail, Lock, AlertCircle, Loader2, Music } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -17,10 +19,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-  const { login, register } = useAuth();
 
-  if (!isOpen) return null;
+  const { login, register } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +33,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           setError('Passwords do not match');
           return;
         }
-        
+
         const result = await register(formData.username, formData.email, formData.password);
         if (result.success) {
           onClose();
@@ -63,175 +63,169 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-        <div className="fixed inset-0 bg-black bg-opacity-75 transition-opacity" onClick={onClose}></div>
-        
-        <div className="relative transform overflow-hidden rounded-lg bg-gray-800 px-4 pt-5 pb-4 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6 border border-gray-700">
-          <div className="absolute top-0 right-0 pt-4 pr-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md bg-gray-800 text-gray-400 hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors duration-200"
-            >
-              <span className="sr-only">Close</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+          />
 
-          <div className="sm:flex sm:items-start">
-            <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-              <div className="flex items-center mb-6">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 3l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-.01L12 3z"/>
-                  </svg>
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: "spring", duration: 0.5 }}
+            className="relative w-full max-w-md bg-space-800/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl"
+          >
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/5"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-8">
+              {/* Header */}
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent-500/20 mb-4 text-accent-400">
+                  <Music className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-medium leading-6 text-white">
-                    {mode === 'login' ? 'Sign in to MusicSync' : 'Create your account'}
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    {mode === 'login' ? 'Welcome back! Please sign in to continue.' : 'Join the music sync community today.'}
-                  </p>
-                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                </h2>
+                <p className="text-gray-400 text-sm">
+                  {mode === 'login'
+                    ? 'Enter your credentials to access your account'
+                    : 'Join the community and start listening today'}
+                </p>
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="mb-4 rounded-md bg-red-900/30 border border-red-700/50 p-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-red-300">{error}</p>
-                    </div>
-                  </div>
-                </div>
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-200">{error}</p>
+                </motion.div>
               )}
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === 'register' && (
                   <div>
-                    <label htmlFor="username" className="block text-sm font-medium text-gray-300">
-                      Username
-                    </label>
-                    <div className="mt-1">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <User className="h-5 w-5 text-gray-500" />
+                      </div>
                       <input
-                        id="username"
                         type="text"
                         name="username"
                         value={formData.username}
                         onChange={handleInputChange}
                         required
-                        className="block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm placeholder-gray-400"
-                        placeholder="Choose a username"
+                        placeholder="Username"
+                        className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-black/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-transparent transition-all"
                       />
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-                    {mode === 'login' ? 'Email or Username' : 'Email address'}
-                  </label>
-                  <div className="mt-1">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-500" />
+                    </div>
                     <input
-                      id="email"
                       type={mode === 'login' ? 'text' : 'email'}
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
                       required
-                      className="block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm placeholder-gray-400"
-                      placeholder={mode === 'login' ? 'Enter email or username' : 'Enter your email address'}
+                      placeholder={mode === 'login' ? 'Email or Username' : 'Email Address'}
+                      className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-black/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-transparent transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-                    Password
-                  </label>
-                  <div className="mt-1">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-500" />
+                    </div>
                     <input
-                      id="password"
                       type="password"
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
                       required
-                      className="block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm placeholder-gray-400"
-                      placeholder="Enter your password"
+                      placeholder="Password"
+                      className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-black/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-transparent transition-all"
                     />
                   </div>
                 </div>
 
                 {mode === 'register' && (
                   <div>
-                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
-                      Confirm password
-                    </label>
-                    <div className="mt-1">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-gray-500" />
+                      </div>
                       <input
-                        id="confirmPassword"
                         type="password"
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
                         required
-                        className="block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm placeholder-gray-400"
-                        placeholder="Confirm your password"
+                        placeholder="Confirm Password"
+                        className="block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-black/20 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-transparent transition-all"
                       />
                     </div>
                   </div>
                 )}
 
-                <div className="mt-6">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex w-full justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                  >
-                    {isLoading ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        {mode === 'login' ? 'Signing in...' : 'Creating account...'}
-                      </>
-                    ) : (
-                      mode === 'login' ? 'Sign in' : 'Create account'
-                    )}
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 rounded-xl bg-accent-600 hover:bg-accent-500 text-white font-semibold shadow-lg shadow-accent-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {mode === 'login' ? 'Signing in...' : 'Creating account...'}
+                    </>
+                  ) : (
+                    mode === 'login' ? 'Sign In' : 'Create Account'
+                  )}
+                </button>
               </form>
 
               {/* Mode Toggle */}
               <div className="mt-6 text-center">
-                <p className="text-sm text-gray-400">
+                <p className="text-gray-400 text-sm">
                   {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
-                  {' '}
                   <button
                     type="button"
                     onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                    className="font-medium text-blue-400 hover:text-blue-300 transition-colors duration-200"
+                    className="ml-2 text-accent-400 hover:text-accent-300 font-medium transition-colors"
                   >
-                    {mode === 'login' ? 'Sign up' : 'Sign in'}
+                    {mode === 'login' ? 'Sign up' : 'Log in'}
                   </button>
                 </p>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 }

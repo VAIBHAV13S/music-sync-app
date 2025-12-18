@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Music, Mic2, Radio, LogOut, ArrowRight, X, Loader2 } from 'lucide-react';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 interface HomeProps {
   onShowAuth?: () => void;
+}
+
+function cn(...inputs: (string | undefined | null | false)[]) {
+  return twMerge(clsx(inputs));
 }
 
 function Home({ onShowAuth }: HomeProps) {
@@ -15,9 +23,9 @@ function Home({ onShowAuth }: HomeProps) {
 
   const handleQuickJoin = async () => {
     if (!quickJoinCode.trim()) return;
-    
+
     setIsJoining(true);
-    
+
     try {
       // Auto-detect server URL
       const getServerUrl = () => {
@@ -31,10 +39,9 @@ function Home({ onShowAuth }: HomeProps) {
       };
 
       const API_BASE_URL = getServerUrl().replace(/\/$/, '');
-      
-      // Check if room exists before navigating
+
       const response = await fetch(`${API_BASE_URL}/api/rooms/${quickJoinCode}`);
-      
+
       if (response.ok) {
         navigate(`/join/${quickJoinCode}`);
       } else {
@@ -66,58 +73,57 @@ function Home({ onShowAuth }: HomeProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 relative">
-      {/* Professional Header */}
-      <header className="bg-gray-800/90 backdrop-blur-lg border-b border-gray-700/50 sticky top-0 z-50">
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background Elements */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent-500/20 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '0s' }} />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '1.5s' }} />
+      </div>
+
+      {/* Header */}
+      <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-space-900/50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 3l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-.01L12 3z"/>
-                  </svg>
-                </div>
-                <h1 className="text-xl font-semibold text-white">MusicSync</h1>
+          <div className="flex justify-between items-center h-20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-accent-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-accent-500/30">
+                <Music className="w-5 h-5 text-white" />
               </div>
+              <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+                MusicSync
+              </h1>
             </div>
-            
+
             {isAuthenticated ? (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">
+                  <div className="w-10 h-10 bg-space-800 rounded-full flex items-center justify-center border border-white/10 ring-2 ring-accent-500/20">
+                    <span className="text-white font-semibold">
                       {user?.username?.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <div className="hidden sm:block">
+                  <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium text-white">{user?.username}</p>
-                    <p className="text-xs text-gray-400">{user?.email}</p>
+                    <p className="text-xs text-gray-400">Online</p>
                   </div>
                 </div>
-                
+
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="inline-flex items-center px-3 py-2 border border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                  title="Sign out"
                 >
                   {isLoggingOut ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Signing out...
-                    </>
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    'Sign out'
+                    <LogOut className="w-5 h-5" />
                   )}
                 </button>
               </div>
             ) : (
               <button
                 onClick={onShowAuth}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="glass-button px-6 py-2.5 rounded-full text-sm font-medium text-white hover:bg-white/10 shadow-lg shadow-accent-500/10"
               >
                 Sign in
               </button>
@@ -127,155 +133,170 @@ function Home({ onShowAuth }: HomeProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {isAuthenticated ? (
-          <div className="space-y-12">
-            {/* Hero Section */}
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-white sm:text-5xl md:text-6xl">
-                Listen to music
-                <span className="block text-blue-400">together, anywhere</span>
+      <main className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-24 items-center min-h-[calc(100vh-12rem)]">
+          {/* Left Column: Hero Text */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-left space-y-8"
+          >
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-500/10 border border-accent-500/20 text-accent-400 text-sm font-medium">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-500"></span>
+                </span>
+                Live Audio Synchronization
+              </div>
+              <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-tight">
+                Listen <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-400 to-purple-400 text-glow">Together</span>
+                <br />
+                Everywhere
               </h1>
-              <p className="mt-3 max-w-md mx-auto text-base text-gray-400 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-                Create synchronized music rooms and enjoy your favorite songs with friends in real-time.
+              <p className="text-xl text-gray-400 max-w-lg leading-relaxed">
+                Create synchronized music rooms and vibe with friends in real-time.
+                Crystal clear audio, zero latency feel.
               </p>
             </div>
 
-            {/* Quick Join Section */}
-            <div className="max-w-md mx-auto">
-              <div className="bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-700">
-                <h3 className="text-lg font-medium text-white mb-4">Join a room</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="room-code" className="block text-sm font-medium text-gray-300 mb-2">
-                      Room code
-                    </label>
+            {!isAuthenticated && (
+              <motion.button
+                onClick={onShowAuth}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white transition-all duration-200 bg-accent-600 rounded-full hover:bg-accent-500 hover:shadow-lg hover:shadow-accent-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-500 focus:ring-offset-space-900"
+              >
+                Get Started
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+            )}
+
+            {isAuthenticated && (
+              <div className="glass-panel p-6 rounded-2xl max-w-md">
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Got a code? Jump in.
+                </label>
+                <div className="flex gap-3">
+                  <div className="relative flex-grow">
                     <input
-                      id="room-code"
                       type="text"
-                      placeholder="Enter room code"
+                      placeholder="ENTER CODE"
                       value={quickJoinCode}
                       onChange={(e) => setQuickJoinCode(e.target.value.toUpperCase())}
                       onKeyPress={handleKeyPress}
-                      className="block w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       maxLength={10}
+                      className="w-full bg-space-900/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-accent-500/50 transition-all font-mono tracking-wider"
                     />
                   </div>
                   <button
                     onClick={handleQuickJoin}
                     disabled={!quickJoinCode.trim() || isJoining}
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-white text-space-900 px-6 py-3 rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-white/20"
                   >
-                    {isJoining ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Joining...
-                      </>
-                    ) : (
-                      'Join room'
-                    )}
+                    {isJoining ? <Loader2 className="w-5 h-5 animate-spin" /> : 'JOIN'}
                   </button>
                 </div>
               </div>
+            )}
+          </motion.div>
+
+          {/* Right Column: Visuals/Cards */}
+          <div className="relative hidden lg:block h-full min-h-[600px]">
+            {/* Floating Elements Background */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-[500px] h-[500px] border border-white/5 rounded-full animate-spin-slow opacity-30" />
+              <div className="absolute w-[350px] h-[350px] border border-white/5 rounded-full animate-spin-slow opacity-30" style={{ animationDirection: 'reverse' }} />
             </div>
 
-            {/* Action Cards */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-2 max-w-4xl mx-auto">
-              <div className="bg-gray-800 overflow-hidden shadow-lg rounded-xl border border-gray-700">
-                <div className="p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                      </div>
+            {/* Cards */}
+            <div className="relative h-full flex flex-col justify-center items-center gap-6">
+              {isAuthenticated ? (
+                <>
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    whileHover={{ y: -5 }}
+                    className="glass-panel p-6 rounded-3xl w-80 cursor-pointer group"
+                    onClick={() => navigate('/host/group')}
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center mb-4 shadow-lg shadow-green-500/20 group-hover:scale-110 transition-transform">
+                      <Mic2 className="w-6 h-6 text-white" />
                     </div>
-                    <div className="ml-4">
-                      <h3 className="text-lg font-medium text-white">Host a Room</h3>
-                      <p className="text-sm text-gray-400">Create a new music session and invite others</p>
-                    </div>
-                  </div>
-                  <div className="mt-6">
-                    <button
-                      onClick={() => navigate('/host/group')}
-                      className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                    >
-                      Create Room
-                    </button>
-                  </div>
-                </div>
-              </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Host a Room</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Start your own session. You control the queue, they vibe with you.
+                    </p>
+                  </motion.div>
 
-              <div className="bg-gray-800 overflow-hidden shadow-lg rounded-xl border border-gray-700">
-                <div className="p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    whileHover={{ y: -5 }}
+                    className="glass-panel p-6 rounded-3xl w-80 cursor-pointer group ml-24"
+                    onClick={() => navigate('/join/browse')}
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-400 to-violet-600 flex items-center justify-center mb-4 shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
+                      <Radio className="w-6 h-6 text-white" />
                     </div>
-                    <div className="ml-4">
-                      <h3 className="text-lg font-medium text-white">Browse Rooms</h3>
-                      <p className="text-sm text-gray-400">Find and join public music sessions</p>
-                    </div>
-                  </div>
-                  <div className="mt-6">
-                    <button
-                      onClick={() => navigate('/join/browse')}
-                      className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                    >
-                      Browse Rooms
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center">
-            <div className="max-w-3xl mx-auto">
-              <h1 className="text-4xl font-bold text-white sm:text-5xl md:text-6xl">
-                Listen to music
-                <span className="block text-blue-400">together, anywhere</span>
-              </h1>
-              <p className="mt-3 max-w-md mx-auto text-base text-gray-300 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-                Create synchronized music rooms and enjoy your favorite songs with friends in real-time. Sign in to get started.
-              </p>
-              <div className="mt-8">
-                <button
-                  onClick={onShowAuth}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    <h3 className="text-xl font-bold text-white mb-2">Browse Rooms</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Discover public rooms and meet new people over great music.
+                    </p>
+                  </motion.div>
+                </>
+              ) : (
+                <motion.div
+                  animate={{ y: [0, -20, 0] }}
+                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                  className="relative z-10"
                 >
-                  Get Started
-                </button>
-              </div>
+                  <div className="glass-panel p-8 rounded-[2rem] border border-white/10 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-20">
+                      <Music className="w-32 h-32 text-accent-500" />
+                    </div>
+                    <div className="space-y-6 relative z-10">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-space-800 flex items-center justify-center border border-white/10">
+                          <span className="block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        </div>
+                        <div>
+                          <div className="h-2 w-24 bg-gray-700 rounded mb-2" />
+                          <div className="h-2 w-16 bg-gray-700 rounded" />
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-2 w-full bg-gray-700 rounded" />
+                        <div className="h-2 w-5/6 bg-gray-700 rounded" />
+                        <div className="h-2 w-4/6 bg-gray-700 rounded" />
+                      </div>
+                      <div className="pt-4 flex gap-3">
+                        <div className="h-10 w-10 rounded-full bg-accent-500/20" />
+                        <div className="h-10 w-10 rounded-full bg-purple-500/20" />
+                        <div className="h-10 w-10 rounded-full bg-blue-500/20" />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-400">
-            &copy; 2025 MusicSync. Bringing people together through music.
+      <footer className="border-t border-white/5 bg-space-900/50 backdrop-blur-lg">
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-gray-500">
+            &copy; 2025 MusicSync. Crafted for audio lovers.
           </p>
-          {/* Debug link - only shows in development */}
           {import.meta.env.DEV && (
-            <div className="text-center mt-2">
-              <a 
-                href="/debug" 
-                className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors duration-200"
-              >
-                🔧 Debug Connection
-              </a>
-            </div>
+            <a href="/debug" className="text-xs text-accent-500 hover:text-accent-400 transition-colors">
+              Connection Status
+            </a>
           )}
         </div>
       </footer>
@@ -284,3 +305,4 @@ function Home({ onShowAuth }: HomeProps) {
 }
 
 export default Home;
+

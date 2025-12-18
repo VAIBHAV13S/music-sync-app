@@ -3,6 +3,21 @@ import YouTubeSearch from "../components/YouTubeSearch";
 import YouTubePlayer, { YouTubePlayerRef } from "../components/YouTubePlayer";
 import { useSync } from "../hooks/useSync";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  ArrowLeft,
+  Users,
+  Copy,
+  Share2,
+  Music2,
+  Signal,
+  Clock,
+  Info,
+  X,
+  CheckCircle2,
+  ShieldCheck,
+  Disc
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 function HostRoom() {
   const { mode } = useParams<{ mode: string }>();
@@ -12,24 +27,19 @@ function HostRoom() {
   if (!roomCode) {
     roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     window.history.replaceState({}, '', `${window.location.pathname}?room=${roomCode}`);
-  } 
-  
+  }
+
   const stableRoomCode = useMemo(() => roomCode, [roomCode]);
-  
+
   const [selectedVideoId, setSelectedVideoId] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
   const [sessionStats, setSessionStats] = useState({ songsPlayed: 0, totalTime: 0 });
-  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
-  const [volume, setVolume] = useState(80);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  
+  const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
+
   const playerSyncRef = useRef<YouTubePlayerRef>(null);
-  
+
   const { connected, participantCount, syncPlay, syncPause, syncSeek, syncVideoLoad } = useSync({
     roomCode: stableRoomCode,
     isHost: true
@@ -84,131 +94,129 @@ function HostRoom() {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const getConnectionStatus = () => {
-    if (!connected) return { status: 'Connecting...', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20' };
-    if (connectionQuality === 'excellent') return { status: 'Excellent', color: 'text-green-400', bgColor: 'bg-green-900/20' };
-    if (connectionQuality === 'good') return { status: 'Good', color: 'text-blue-400', bgColor: 'bg-blue-900/20' };
-    return { status: 'Poor', color: 'text-red-400', bgColor: 'bg-red-900/20' };
-  };
-
-  const connectionStatus = getConnectionStatus();
+  const connectionStatus = useMemo(() => {
+    if (!connected) return { label: 'Connecting...', color: 'text-yellow-400', bg: 'bg-yellow-400/10', ring: 'ring-yellow-400/20' };
+    if (connectionQuality === 'excellent') return { label: 'Excellent', color: 'text-green-400', bg: 'bg-green-400/10', ring: 'ring-green-400/20' };
+    if (connectionQuality === 'good') return { label: 'Good', color: 'text-blue-400', bg: 'bg-blue-400/10', ring: 'ring-blue-400/20' };
+    return { label: 'Poor', color: 'text-red-400', bg: 'bg-red-400/10', ring: 'ring-red-400/20' };
+  }, [connected, connectionQuality]);
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen relative bg-space-900 pb-12">
+      {/* Background Elements */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-accent-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-[100px]" />
+      </div>
+
       {/* Header */}
-      <header className="bg-gray-800 shadow-sm border-b border-gray-700">
+      <header className="sticky top-0 z-40 border-b border-white/5 bg-space-900/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
+          <div className="flex justify-between items-center h-20">
+            <div className="flex items-center gap-6">
               <button
                 onClick={() => navigate('/')}
-                className="inline-flex items-center text-sm font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
+                className="p-2 -ml-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/5 group"
+                title="Back to Home"
               >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Home
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
-              <div className="h-6 w-px bg-gray-600"></div>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
+
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20">
+                  <ShieldCheck className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold text-white">Hosting Room</h1>
-                  <p className="text-sm text-gray-400">You're the host of this session</p>
+                  <h1 className="text-lg font-bold text-white">Host Dashboard</h1>
+                  <p className="text-xs text-gray-400">Manage your session</p>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Connection Status */}
-              <div className={`px-3 py-1 rounded-full text-xs font-medium ${connectionStatus.bgColor} ${connectionStatus.color}`}>
-                {connectionStatus.status}
+              <div className={`hidden sm:flex px-3 py-1.5 rounded-full items-center gap-2 border border-white/5 ${connectionStatus.bg} ${connectionStatus.ring}`}>
+                <div className={`w-2 h-2 rounded-full ${connectionStatus.color.replace('text-', 'bg-')} animate-pulse`} />
+                <span className={`text-xs font-medium ${connectionStatus.color}`}>{connectionStatus.label}</span>
               </div>
-              
-              {/* Participants Count */}
-              <div className="flex items-center gap-2 text-sm text-gray-300">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {participantCount} participant{participantCount !== 1 ? 's' : ''}
+
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel">
+                <Users className="w-4 h-4 text-accent-400" />
+                <span className="text-sm font-medium text-white">{participantCount}</span>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content - Video Player */}
           <div className="lg:col-span-2 space-y-6">
             {/* Room Info Card */}
-            <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="glass-panel rounded-2xl p-1">
+              <div className="bg-space-900/50 rounded-xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-white">Room Code</h2>
-                  <p className="text-sm text-gray-400 mt-1">Share this code with others to invite them</p>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    Room Code
+                    <span className="px-2 py-0.5 rounded text-xs bg-accent-500/20 text-accent-300 border border-accent-500/20">Active</span>
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1">Share this code to invite friends</p>
                 </div>
+
                 <div className="flex items-center gap-3">
-                  <div className="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
-                    <span className="text-2xl font-mono font-bold text-white tracking-wider">
+                  <div className="bg-space-950/50 border border-white/10 rounded-xl px-6 py-3 relative group">
+                    <span className="text-3xl font-mono font-bold text-white tracking-widest text-glow">
                       {stableRoomCode}
                     </span>
                   </div>
-                  <button
-                    onClick={copyRoomCode}
-                    className="inline-flex items-center px-3 py-2 border border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                  >
-                    {copySuccess ? (
-                      <>
-                        <svg className="w-4 h-4 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                        Copy
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={shareRoom}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                    </svg>
-                    Share
-                  </button>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={copyRoomCode}
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-gray-300 hover:text-white transition-all active:scale-95"
+                      title="Copy Code"
+                    >
+                      {copySuccess ? <CheckCircle2 className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
+                    </button>
+                    <button
+                      onClick={shareRoom}
+                      className="p-2.5 rounded-xl bg-accent-600 hover:bg-accent-500 shadow-lg shadow-accent-500/20 text-white transition-all active:scale-95"
+                      title="Share Link"
+                    >
+                      <Share2 className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Video Player Card */}
-            <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
-              <div className="p-6 border-b border-gray-700">
-                <h3 className="text-lg font-medium text-white">Now Playing</h3>
-                {selectedVideoId && (
-                  <p className="text-sm text-gray-400 mt-1">
-                    Synchronized with {participantCount} participant{participantCount !== 1 ? 's' : ''}
-                  </p>
-                )}
+            <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl shadow-black/50">
+              <div className="p-4 border-b border-white/5 bg-space-800/50 backdrop-blur-sm flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedVideoId ? 'bg-red-500/20' : 'bg-gray-700/50'}`}>
+                    <Disc className={`w-4 h-4 ${selectedVideoId ? 'text-red-500 animate-spin-slow' : 'text-gray-500'}`} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Now Playing</h3>
+                    {selectedVideoId && (
+                      <p className="text-xs text-green-400 flex items-center gap-1">
+                        <Signal className="w-3 h-3" />
+                        Syncing with {participantCount} devices
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="aspect-video bg-gray-900">
+
+              <div className="aspect-video bg-black relative">
                 {selectedVideoId ? (
                   <YouTubePlayer
                     ref={playerSyncRef}
@@ -219,14 +227,10 @@ function HostRoom() {
                     isHost={true}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white">
-                    <div className="text-center">
-                      <svg className="w-16 h-16 mx-auto mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                      </svg>
-                      <h4 className="text-xl font-medium mb-2">No music selected</h4>
-                      <p className="text-gray-400">Search for a song to start your session</p>
-                    </div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-space-950/50">
+                    <Music2 className="w-16 h-16 mb-4 opacity-50" />
+                    <p className="text-lg font-medium">No track selected</p>
+                    <p className="text-sm opacity-60">Select a song from the sidebar to start</p>
                   </div>
                 )}
               </div>
@@ -236,79 +240,76 @@ function HostRoom() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Search Card */}
-            <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Search Music</h3>
+            <div className="glass-panel p-6 rounded-2xl min-h-[400px]">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <Music2 className="w-5 h-5 text-accent-400" />
+                Search Music
+              </h3>
               <YouTubeSearch onSelectTrack={handleVideoSelect} />
             </div>
 
             {/* Session Stats */}
-            <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Session Stats</h3>
+            <div className="glass-panel p-6 rounded-2xl">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Signal className="w-5 h-5 text-green-400" />
+                Session Stats
+              </h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
                   <span className="text-sm text-gray-400">Songs played</span>
-                  <span className="text-lg font-semibold text-white">{sessionStats.songsPlayed}</span>
+                  <span className="text-lg font-mono font-bold text-white">{sessionStats.songsPlayed}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Participants</span>
-                  <span className="text-lg font-semibold text-white">{participantCount}</span>
-                </div>
-                {sessionStartTime && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Session duration</span>
-                    <span className="text-lg font-semibold text-white">
-                      {formatDuration(Math.floor((Date.now() - sessionStartTime.getTime()) / 1000))}
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                  <span className="text-sm text-gray-400">Total duration</span>
+                  <div className="text-right">
+                    <span className="text-lg font-mono font-bold text-white">
+                      {sessionStartTime ? formatDuration(Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)) : '0:00'}
                     </span>
                   </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Connection</span>
-                  <span className={`text-sm font-medium ${connectionStatus.color}`}>
-                    {connectionStatus.status}
-                  </span>
                 </div>
               </div>
             </div>
 
             {/* Instructions */}
-            {showInstructions && (
-              <div className="bg-blue-900/20 rounded-xl border border-blue-700/50 p-6">
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="text-lg font-medium text-blue-300">How to use</h3>
-                  <button
-                    onClick={() => setShowInstructions(false)}
-                    className="text-blue-400 hover:text-blue-300 transition-colors duration-200"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="space-y-3 text-sm text-blue-200">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center">
-                      <span className="text-xs font-medium text-white">1</span>
-                    </div>
-                    <p>Share the room code with friends to invite them to your session</p>
+            <AnimatePresence>
+              {showInstructions && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="bg-accent-500/10 rounded-2xl border border-accent-500/20 p-6 relative overflow-hidden"
+                >
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-accent-500/20 blur-2xl rounded-full" />
+
+                  <div className="flex justify-between items-start mb-4 relative z-10">
+                    <h3 className="text-lg font-bold text-accent-200 flex items-center gap-2">
+                      <Info className="w-5 h-5" />
+                      Pro Tips
+                    </h3>
+                    <button
+                      onClick={() => setShowInstructions(false)}
+                      className="text-accent-400 hover:text-accent-200 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center">
-                      <span className="text-xs font-medium text-white">2</span>
+
+                  <div className="space-y-4 relative z-10">
+                    <div className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-accent-500/20 flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent-300">1</div>
+                      <p className="text-sm text-accent-100/80 leading-relaxed">Share the code above. Friends can join securely from any device.</p>
                     </div>
-                    <p>Search and select songs to play for everyone in the room</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center">
-                      <span className="text-xs font-medium text-white">3</span>
+                    <div className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-accent-500/20 flex items-center justify-center flex-shrink-0 text-xs font-bold text-accent-300">2</div>
+                      <p className="text-sm text-accent-100/80 leading-relaxed">You control the flow. Pause or seek, and everyone syncs instantly.</p>
                     </div>
-                    <p>Use the video controls to play, pause, or seek - all participants will sync automatically</p>
                   </div>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
